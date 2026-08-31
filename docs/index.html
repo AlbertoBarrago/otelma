@@ -113,7 +113,7 @@
     <span class="badge">Go</span>
     <span class="badge">Apple Silicon</span>
     <span class="badge">llama.cpp</span>
-    <span class="badge">v0.1</span>
+    <span class="badge">v0.2</span>
   </div>
 </header>
 
@@ -128,7 +128,7 @@
 <pre><code>brew tap albertobarrago/otelma
 brew install otelma</code></pre>
       <p class="d" style="color:var(--text-dim);margin-top:0.6rem">Builds from the
-        <a href="https://github.com/AlbertoBarrago/otelma/releases">v0.1.0 release source</a> and
+        <a href="https://github.com/AlbertoBarrago/otelma/releases">latest release source</a> and
         pulls in llama.cpp automatically. Formula:
         <a href="https://github.com/AlbertoBarrago/homebrew-otelma">homebrew-otelma</a>.</p>
     </div>
@@ -145,13 +145,16 @@ go build -o otelma ./cmd/otelma</code></pre>
   <section>
     <h2>Quick start</h2>
 <pre><code>otelma list
-otelma pull smol hf:bartowski/SmolLM2-135M-Instruct-GGUF
-otelma run smol "What is the capital of Italy?"
+otelma pull qwen2.5-0.5b        # by catalog name, resolves the source for you
+otelma run qwen2.5-0.5b "What is the capital of Italy?"
 
-otelma chat smol   # interactive, multi-turn</code></pre>
+otelma chat qwen2.5-0.5b        # interactive, multi-turn</code></pre>
     <p class="d" style="color:var(--text-dim);margin-top:0.6rem">No separate
       "start the server" step: <code>otelma serve</code> auto-starts in the
-      background the first time it's needed.</p>
+      background the first time it's needed. Full docs:
+      <a href="https://github.com/AlbertoBarrago/otelma/blob/main/docs/GUIDE.md">Guide</a>,
+      <a href="https://github.com/AlbertoBarrago/otelma/blob/main/docs/ARCHITECTURE.md">Architecture</a>,
+      <a href="https://github.com/AlbertoBarrago/otelma/blob/main/docs/CONFIGURATION.md">Configuration</a>.</p>
   </section>
 
   <section>
@@ -160,7 +163,8 @@ otelma chat smol   # interactive, multi-turn</code></pre>
       <div class="layer">
         <div class="n">01</div>
         <div class="t">CLI</div>
-        <p class="d">pull, list, ps, run, serve — talks to the API over HTTP even for local calls.</p>
+        <p class="d">pull, list, ps, run, chat, serve, config, version — talks to the API over HTTP
+          even for local calls, and auto-starts the server when needed.</p>
       </div>
       <div class="layer">
         <div class="n">02</div>
@@ -192,7 +196,7 @@ otelma chat smol   # interactive, multi-turn</code></pre>
   </section>
 
   <section>
-    <h2>Status: v0.1</h2>
+    <h2>Status: v0.2</h2>
     <div class="grid2">
       <div>
         <p style="margin:0 0 0.4rem;font-weight:600">Works end-to-end</p>
