@@ -113,6 +113,29 @@ Your name is Alberto.
 > /exit
 ```
 
+## OpenAI-compatible API
+
+`otelma serve` also exposes a minimal subset of the OpenAI chat completions
+API, so any tool that supports a custom OpenAI-compatible endpoint can use
+otelma as its backend:
+
+```sh
+curl http://localhost:11535/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "smol", "messages": [{"role": "user", "content": "hi"}]}'
+
+curl http://localhost:11535/v1/models
+```
+
+`model` maps directly to an otelma model name (from `otelma pull`); the
+request is dispatched through the same Scheduler as `otelma run`/`chat`, so
+it auto-loads the model within the memory budget. **Not implemented:**
+streaming (`stream: true` is rejected with a 400, not silently ignored) and
+token usage accounting (`usage` in the response is always zeroed). See
+[docs/GUIDE.md](docs/GUIDE.md#openai-compatible-api) for details and
+caveats (in particular: cold-start load time on the first request per
+model, which a short client-side timeout may not tolerate).
+
 ## Version
 
 ```sh

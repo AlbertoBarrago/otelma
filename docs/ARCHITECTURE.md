@@ -52,13 +52,22 @@ is what makes a fresh `otelma pull ...` work with no separate setup step.
 ## 2. Local runtime API (`internal/api`)
 
 A `net/http` server (Go 1.22+ pattern-based `ServeMux`, no router
-dependency) exposing three endpoints:
+dependency) exposing otelma's native endpoints plus an OpenAI-compatible
+subset:
 
 - `POST /api/pull` — registers a model (see Model manager below)
 - `GET /api/ps` — lists registered models and their state
 - `POST /api/run` — runs a conversation turn against a model; accepts
   either `{"prompt": "..."}` (single-shot) or `{"messages": [...]}`
   (multi-turn, used by `otelma chat`)
+- `POST /v1/chat/completions` / `GET /v1/models` (`internal/api/openai.go`)
+  — a minimal OpenAI chat-completions-compatible surface, so any tool with
+  "custom OpenAI endpoint" support can use otelma as its backend. `model`
+  in the request is an otelma model name, dispatched through the same
+  `Scheduler.Submit` as the native endpoints. No streaming, no real token
+  usage accounting — see
+  [GUIDE.md](GUIDE.md#openai-compatible-api) for the full contract and
+  the note on keeping these docs in sync with `openai.go`.
 
 ### Model manager (`internal/manager`)
 

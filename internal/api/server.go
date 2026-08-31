@@ -36,6 +36,10 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /api/pull", s.handlePull)
 	mux.HandleFunc("GET /api/ps", s.handlePS)
 	mux.HandleFunc("POST /api/run", s.handleRun)
+	// OpenAI-compatible subset (see openai.go) so tools that support a
+	// custom OpenAI endpoint can use otelma as their backend.
+	mux.HandleFunc("POST /v1/chat/completions", s.handleOpenAIChatCompletions)
+	mux.HandleFunc("GET /v1/models", s.handleOpenAIModels)
 	return mux
 }
 

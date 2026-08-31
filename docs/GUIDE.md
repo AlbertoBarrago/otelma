@@ -154,6 +154,74 @@ config file to match (see [CONFIGURATION.md](CONFIGURATION.md)) — otherwise
 `ensureServerRunning` won't find the server you started and will spawn a
 second one on the default address.
 
+## OpenAI-compatible API
+
+`otelma serve` exposes a minimal subset of the OpenAI chat completions API
+(`internal/api/openai.go`) so tools that support a custom OpenAI-compatible
+endpoint — editors, IDE assistants, scripts using the OpenAI SDK — can use
+otelma as their backend instead of a cloud API.
+
+### `POST /v1/chat/completions`
+
+```sh
+curl http://localhost:11535/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "smol",
+    "messages": [{"role": "user", "content": "What is the capital of Italy?"}]
+  }'
+```
+
+```json
+{
+  "id": "chatcmpl-1788187622075270000",
+  "object": "chat.completion",
+  "created": 1788187622,
+  "model": "smol",
+  "choices": [{
+    "index": 0,
+    "message": {"role": "assistant", "content": "The capital of Italy is Rome."},
+    "finish_reason": "stop"
+  }],
+  "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+}
+```
+
+`model` is an otelma model name (from `otelma pull`), not a Hugging Face
+repo — pull it first. The request goes through the same `Scheduler.Submit`
+as `otelma run`/`otelma chat`, so a model that's only `DOWNLOADED` gets
+loaded first, inside the memory budget.
+
+### `GET /v1/models`
+
+```sh
+curl http://localhost:11535/v1/models
+```
+
+Lists every registered model (any state, not just `READY`) in the OpenAI
+model-list shape, for tools that populate a model picker from this
+endpoint.
+
+### What's NOT implemented
+
+- **Streaming** — `{"stream": true}` gets a `400` with an OpenAI-shaped
+  error body, not a silently-ignored flag or a broken stream. If a tool
+  hard-requires streaming, it won't work against otelma yet.
+- **Token usage accounting** — `usage` in the response is always zeroed;
+  otelma doesn't tokenize on this path today.
+- **Cold-start latency** — the first request against a model that isn't
+  `READY` yet pays the full `llama-server` load time (see
+  `llamacpp_startup_timeout_seconds` in [CONFIGURATION.md](CONFIGURATION.md)).
+  A tool with a short client-side request timeout may time out on that
+  first call; `otelma run <name> "warmup"` once beforehand avoids it.
+
+> **Keeping this in sync**: the request/response shapes here mirror
+> `internal/api/openai.go` exactly. If you change that file's types or
+> behavior (new fields, streaming support, real usage stats), update this
+> section, the README's OpenAI-compatible API section, and
+> `docs/index.html` in the same change — don't let the docs drift from
+> what the endpoint actually does.
+
 ## Troubleshooting
 
 **"connection refused" even though I ran a command that should auto-start

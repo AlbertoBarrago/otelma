@@ -171,7 +171,9 @@ otelma chat qwen2.5-0.5b        # interactive, multi-turn</code></pre>
         <div class="t">Local runtime API</div>
         <p class="d">Model manager: registry + explicit state machine (NOT_PRESENT → DOWNLOADED →
           LOADING → READY → BUSY → UNLOADING), with a memory Budget that rejects any load exceeding
-          the ceiling. Scheduler: serializes concurrent requests through the manager.</p>
+          the ceiling. Scheduler: serializes concurrent requests through the manager. Also exposes a
+          minimal OpenAI-compatible <code>/v1/chat/completions</code> + <code>/v1/models</code>, so
+          any tool with "custom OpenAI endpoint" support can use otelma as its backend.</p>
       </div>
       <div class="layer">
         <div class="n">03</div>
@@ -207,6 +209,7 @@ otelma chat qwen2.5-0.5b        # interactive, multi-turn</code></pre>
           <li>Curated model catalog (<code>otelma list</code>)</li>
           <li>Configurable via a single JSON file (<code>otelma config</code>)</li>
           <li>Server auto-starts in the background when needed</li>
+          <li>OpenAI-compatible <code>/v1/chat/completions</code> (no streaming)</li>
         </ul>
       </div>
       <div>
