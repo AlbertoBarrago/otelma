@@ -3,6 +3,9 @@ package manager
 import (
 	"fmt"
 	"sync"
+
+	"github.com/albz/otelma/internal/backend"
+	"github.com/albz/otelma/internal/storage"
 )
 
 // legalTransitions enumerates every allowed ModelState transition. Anything
@@ -35,11 +38,130 @@ type Manager struct {
 	mu       sync.Mutex
 	Registry *Registry
 	Budget   *Budget
+
+	// NewBackend constructs a fresh backend instance for a model being
+	// loaded. Injected so the manager stays decoupled from any concrete
+	// backend implementation (v0.1 wires in backend/echo).
+	NewBackend func() backend.InferenceBackend
+
+	backends map[string]backend.InferenceBackend
 }
 
-// NewManager wires a Registry and Budget together.
-func NewManager(registry *Registry, budget *Budget) *Manager {
-	return &Manager{Registry: registry, Budget: budget}
+// NewManager wires a Registry and Budget together. newBackend is called once
+// per LoadModel to obtain the backend instance for that model.
+func NewManager(registry *Registry, budget *Budget, newBackend func() backend.InferenceBackend) *Manager {
+	return &Manager{
+		Registry:   registry,
+		Budget:     budget,
+		NewBackend: newBackend,
+		backends:   make(map[string]backend.InferenceBackend),
+	}
+}
+
+// Pull registers a model already present on disk at path: computes its
+// checksum and size, and enters it into the registry in the Downloaded
+// state. It does not touch the memory budget.
+func (mgr *Manager) Pull(name, path string) (*Model, error) {
+	checksum, err := storage.Checksum(path)
+	if err != nil {
+		return nil, fmt.Errorf("pull %q: %w", name, err)
+	}
+	size, err := storage.Size(path)
+	if err != nil {
+		return nil, fmt.Errorf("pull %q: %w", name, err)
+	}
+
+	m := &Model{
+		Name:                 name,
+		Path:                 path,
+		Checksum:             checksum,
+		State:                NotPresent,
+		MemoryFootprintBytes: size,
+	}
+	if err := mgr.Registry.Register(m); err != nil {
+		return nil, fmt.Errorf("pull %q: %w", name, err)
+	}
+	if err := mgr.Transition(m, Downloaded); err != nil {
+		return nil, fmt.Errorf("pull %q: %w", name, err)
+	}
+	return m, nil
+}
+
+// LoadModel moves a Downloaded model through Loading into Ready, reserving
+// budget and invoking the backend. On backend failure the model is rolled
+// back to Downloaded and its budget reservation released.
+func (mgr *Manager) LoadModel(name string) error {
+	m, ok := mgr.Registry.Get(name)
+	if !ok {
+		return fmt.Errorf("load %q: model not registered", name)
+	}
+
+	if err := mgr.Transition(m, Loading); err != nil {
+		return err
+	}
+
+	be := mgr.NewBackend()
+	if err := be.Load(m.Path); err != nil {
+		_ = mgr.Transition(m, Downloaded) // rollback releases the reservation
+		return fmt.Errorf("load %q: backend load failed: %w", name, err)
+	}
+
+	mgr.mu.Lock()
+	mgr.backends[name] = be
+	mgr.mu.Unlock()
+
+	if err := mgr.Transition(m, Ready); err != nil {
+		return err
+	}
+	return nil
+}
+
+// UnloadModel moves a Ready model through Unloading back to Downloaded,
+// releasing its budget reservation.
+func (mgr *Manager) UnloadModel(name string) error {
+	m, ok := mgr.Registry.Get(name)
+	if !ok {
+		return fmt.Errorf("unload %q: model not registered", name)
+	}
+
+	if err := mgr.Transition(m, Unloading); err != nil {
+		return err
+	}
+
+	mgr.mu.Lock()
+	be, hasBackend := mgr.backends[name]
+	delete(mgr.backends, name)
+	mgr.mu.Unlock()
+
+	if hasBackend {
+		if err := be.Unload(); err != nil {
+			return fmt.Errorf("unload %q: backend unload failed: %w", name, err)
+		}
+	}
+
+	return mgr.Transition(m, Downloaded)
+}
+
+// Infer runs prompt against a Ready model, marking it Busy for the duration.
+func (mgr *Manager) Infer(name, prompt string) (string, error) {
+	m, ok := mgr.Registry.Get(name)
+	if !ok {
+		return "", fmt.Errorf("infer %q: model not registered", name)
+	}
+
+	mgr.mu.Lock()
+	be, hasBackend := mgr.backends[name]
+	mgr.mu.Unlock()
+	if !hasBackend {
+		return "", fmt.Errorf("infer %q: model not loaded", name)
+	}
+
+	if err := mgr.Transition(m, Busy); err != nil {
+		return "", err
+	}
+	defer func() { _ = mgr.Transition(m, Ready) }()
+
+	return be.Infer(prompt)
 }
 
 // Transition moves m from its current state to `to`, enforcing the legal

@@ -1,12 +1,26 @@
 package manager
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/albz/otelma/internal/backend"
+)
+
+type stubBackend struct{ loaded bool }
+
+func (s *stubBackend) Load(string) error                   { s.loaded = true; return nil }
+func (s *stubBackend) Unload() error                       { s.loaded = false; return nil }
+func (s *stubBackend) Infer(prompt string) (string, error) { return "echo:" + prompt, nil }
+func (s *stubBackend) MemoryFootprintBytes() uint64        { return 0 }
 
 func newTestManager(totalBytes uint64) (*Manager, *Model) {
 	m := &Model{Name: "test-model", State: NotPresent, MemoryFootprintBytes: 4}
 	reg := NewRegistry()
 	_ = reg.Register(m)
-	return NewManager(reg, NewBudget(totalBytes)), m
+	newBackend := func() backend.InferenceBackend { return &stubBackend{} }
+	return NewManager(reg, NewBudget(totalBytes), newBackend), m
 }
 
 func TestTransition_FullLifecycle(t *testing.T) {
@@ -89,6 +103,56 @@ func TestBudget_ReleaseMoreThanReservedPanics(t *testing.T) {
 		}
 	}()
 	b.Release(5)
+}
+
+func TestManager_PullLoadInferUnload(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "model.gguf")
+	if err := os.WriteFile(path, []byte("fake weights"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	reg := NewRegistry()
+	mgr := NewManager(reg, NewBudget(1<<20), func() backend.InferenceBackend { return &stubBackend{} })
+
+	m, err := mgr.Pull("demo", path)
+	if err != nil {
+		t.Fatalf("Pull failed: %v", err)
+	}
+	if m.State != Downloaded {
+		t.Fatalf("expected Downloaded after pull, got %s", m.State)
+	}
+	if m.Checksum == "" {
+		t.Fatal("expected non-empty checksum after pull")
+	}
+
+	if err := mgr.LoadModel("demo"); err != nil {
+		t.Fatalf("LoadModel failed: %v", err)
+	}
+	if m.State != Ready {
+		t.Fatalf("expected Ready after load, got %s", m.State)
+	}
+
+	out, err := mgr.Infer("demo", "hello")
+	if err != nil {
+		t.Fatalf("Infer failed: %v", err)
+	}
+	if out != "echo:hello" {
+		t.Fatalf("unexpected infer output: %q", out)
+	}
+	if m.State != Ready {
+		t.Fatalf("expected Ready after infer completes, got %s", m.State)
+	}
+
+	if err := mgr.UnloadModel("demo"); err != nil {
+		t.Fatalf("UnloadModel failed: %v", err)
+	}
+	if m.State != Downloaded {
+		t.Fatalf("expected Downloaded after unload, got %s", m.State)
+	}
+	if got := mgr.Budget.AvailableBytes(); got != 1<<20 {
+		t.Fatalf("expected budget fully released after unload, got %d", got)
+	}
 }
 
 func TestRegistry_DuplicateRegisterFails(t *testing.T) {

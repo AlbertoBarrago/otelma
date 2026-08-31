@@ -1,8 +1,12 @@
 // Command otelma is the CLI entrypoint (pull, run, serve, ps).
 package main
 
-import "fmt"
+import (
+	"os"
+
+	"github.com/albz/otelma/internal/cli"
+)
 
 func main() {
-	fmt.Println("otelma: local LLM inference runtime (scaffolding)")
+	os.Exit(cli.Run(os.Args[1:]))
 }

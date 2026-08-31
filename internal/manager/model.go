@@ -47,10 +47,10 @@ func (s ModelState) String() string {
 // location, and the runtime state needed to make scheduling and memory
 // decisions.
 type Model struct {
-	Name           string
-	Path           string
-	Checksum       string
-	State          ModelState
+	Name     string
+	Path     string
+	Checksum string
+	State    ModelState
 	// MemoryFootprintBytes is the estimated resident memory required to hold
 	// this model in the READY state. Populated from the manifest once known;
 	// the estimation logic itself lives in budget.go.
