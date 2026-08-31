@@ -60,6 +60,8 @@ subset:
 - `POST /api/run` — runs a conversation turn against a model; accepts
   either `{"prompt": "..."}` (single-shot) or `{"messages": [...]}`
   (multi-turn, used by `otelma chat`)
+- `DELETE /api/models/{name}` — unregisters a model (`Manager.Remove`),
+  unloading it first if it's `READY`; refused if it's mid state-transition
 - `POST /v1/chat/completions` / `GET /v1/models` (`internal/api/openai.go`)
   — a minimal OpenAI chat-completions-compatible surface, so any tool with
   "custom OpenAI endpoint" support can use otelma as its backend. `model`

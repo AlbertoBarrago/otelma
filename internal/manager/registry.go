@@ -39,6 +39,20 @@ func (r *Registry) Get(name string) (*Model, bool) {
 	return m, ok
 }
 
+// Unregister removes name from the registry, reporting whether it was
+// present. It does not touch the underlying file on disk (typically the
+// shared Hugging Face cache) or check the model's state — callers must do
+// their own safety checks first (see Manager.Remove).
+func (r *Registry) Unregister(name string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.models[name]; !exists {
+		return false
+	}
+	delete(r.models, name)
+	return true
+}
+
 // List returns every registered model.
 func (r *Registry) List() []*Model {
 	r.mu.RLock()

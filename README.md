@@ -79,6 +79,10 @@ otelma pull local-model /path/to/model.gguf
 # see registered models and their state
 otelma ps
 
+# unregister a model (unloads it first if it's READY; doesn't delete the
+# cached weights file, just otelma's record of having pulled it)
+otelma rm smol
+
 # single-shot: load (if needed) and run one prompt
 otelma run smol "What is the capital of Italy?"
 
@@ -191,12 +195,11 @@ gofmt -l .   # should print nothing
 
 ## Status
 
-v0.1: the full `pull → ps → run/chat` pipeline works end-to-end with real
-inference via `llamacpp`, auto-starting the server when needed. Pulled
-models survive a `serve` restart (the registry persists to disk). Known
-limitations:
+v1.0: the full `pull → ps → rm → run/chat` pipeline works end-to-end with
+real inference via `llamacpp`, auto-starting the server when needed.
+Pulled models survive a `serve` restart (the registry persists to disk).
+Known limitations:
 
 - Scheduler serializes dispatch with a single mutex; no priority/fairness
   queue yet.
 - `internal/backend/mlx` (native Apple Silicon backend) is not implemented.
-- No `otelma rm` yet to unregister/remove a pulled model.

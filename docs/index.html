@@ -118,7 +118,7 @@
     <span class="badge">Go</span>
     <span class="badge">Apple Silicon</span>
     <span class="badge">llama.cpp</span>
-    <span class="badge">v0.2</span>
+    <span class="badge">v1.0</span>
   </div>
 </header>
 
@@ -168,8 +168,8 @@ otelma chat qwen2.5-0.5b        # interactive, multi-turn</code></pre>
       <div class="layer">
         <div class="n">01</div>
         <div class="t">CLI</div>
-        <p class="d">pull, list, ps, run, chat, serve, config, version — talks to the API over HTTP
-          even for local calls, and auto-starts the server when needed.</p>
+        <p class="d">pull, list, ps, rm, run, chat, serve, config, version — talks to the API over
+          HTTP even for local calls, and auto-starts the server when needed.</p>
       </div>
       <div class="layer">
         <div class="n">02</div>
@@ -203,7 +203,7 @@ otelma chat qwen2.5-0.5b        # interactive, multi-turn</code></pre>
   </section>
 
   <section>
-    <h2>Status: v0.2</h2>
+    <h2>Status: v1.0</h2>
     <div class="grid2">
       <div>
         <p style="margin:0 0 0.4rem;font-weight:600">Works end-to-end</p>
@@ -216,13 +216,14 @@ otelma chat qwen2.5-0.5b        # interactive, multi-turn</code></pre>
           <li>Server auto-starts in the background when needed</li>
           <li>Pulled models survive a server restart (registry persists to disk)</li>
           <li>OpenAI-compatible <code>/v1/chat/completions</code> (no streaming)</li>
+          <li><code>otelma rm</code> to unregister a model (unloads it first if READY)</li>
         </ul>
       </div>
       <div>
         <p style="margin:0 0 0.4rem;font-weight:600">Known limitations</p>
         <ul class="plain">
           <li>Scheduler: single mutex, no priority queue</li>
-          <li>No <code>otelma rm</code> yet to unregister a model</li>
+          <li>MLX native Apple Silicon backend not implemented</li>
         </ul>
       </div>
     </div>

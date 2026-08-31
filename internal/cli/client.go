@@ -44,6 +44,19 @@ func (c *client) get(path string, out any) error {
 	return decode(resp, out)
 }
 
+func (c *client) delete(path string) error {
+	req, err := http.NewRequest(http.MethodDelete, c.baseURL+path, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("request to otelma server failed (is `otelma serve` running?): %w", err)
+	}
+	defer resp.Body.Close()
+	return decode(resp, nil)
+}
+
 func decode(resp *http.Response, out any) error {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

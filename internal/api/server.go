@@ -36,6 +36,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /api/pull", s.handlePull)
 	mux.HandleFunc("GET /api/ps", s.handlePS)
 	mux.HandleFunc("POST /api/run", s.handleRun)
+	mux.HandleFunc("DELETE /api/models/{name}", s.handleRemove)
 	// OpenAI-compatible subset (see openai.go) so tools that support a
 	// custom OpenAI endpoint can use otelma as their backend.
 	mux.HandleFunc("POST /v1/chat/completions", s.handleOpenAIChatCompletions)
@@ -82,6 +83,15 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, modelView(m))
+}
+
+func (s *Server) handleRemove(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if err := s.mgr.Remove(name); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handlePS(w http.ResponseWriter, r *http.Request) {

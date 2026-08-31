@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -46,6 +47,10 @@ func Run(args []string) int {
 	case "ps":
 		if err = ensureServerRunning(c); err == nil {
 			err = runPS(c, args[1:])
+		}
+	case "rm":
+		if err = ensureServerRunning(c); err == nil {
+			err = runRm(c, args[1:])
 		}
 	case "run":
 		if err = ensureServerRunning(c); err == nil {
@@ -91,6 +96,8 @@ commands:
   list                     show curated Hugging Face models known to fit the
                           local memory budget, ready to use with pull
   ps                       list known models and their state
+  rm <name>                unregister a model (does not delete the cached
+                          weights file, only otelma's record of it)
   run <name> [prompt]      load (if needed) and run a prompt; omit prompt
                           to start an interactive chat (same as 'chat')
   chat <name>              start an interactive, multi-turn chat session
@@ -171,6 +178,18 @@ func runPS(c *client, args []string) error {
 	for _, m := range out {
 		fmt.Printf("%-24s %-12s %s\n", m.Name, m.State, formatBytes(m.MemoryFootprintBytes))
 	}
+	return nil
+}
+
+func runRm(c *client, args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: otelma rm <name>")
+	}
+	name := args[0]
+	if err := c.delete("/api/models/" + url.PathEscape(name)); err != nil {
+		return err
+	}
+	fmt.Printf("removed %s\n", name)
 	return nil
 }
 

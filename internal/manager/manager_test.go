@@ -158,6 +158,82 @@ func TestManager_PullLoadInferUnload(t *testing.T) {
 	}
 }
 
+func TestManager_RemoveDownloadedModel(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "model.gguf")
+	if err := os.WriteFile(path, []byte("fake weights"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	reg := NewRegistry()
+	mgr := NewManager(reg, NewBudget(1<<20), func() backend.InferenceBackend { return &stubBackend{} })
+
+	if _, err := mgr.Pull(context.Background(), "demo", path); err != nil {
+		t.Fatalf("Pull failed: %v", err)
+	}
+
+	if err := mgr.Remove("demo"); err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+	if _, ok := reg.Get("demo"); ok {
+		t.Fatal("expected 'demo' to be gone from the registry")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("Remove must not delete the underlying file, but: %v", err)
+	}
+}
+
+func TestManager_RemoveReadyModelUnloadsFirst(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "model.gguf")
+	if err := os.WriteFile(path, []byte("fake weights"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	reg := NewRegistry()
+	mgr := NewManager(reg, NewBudget(1<<20), func() backend.InferenceBackend { return &stubBackend{} })
+
+	if _, err := mgr.Pull(context.Background(), "demo", path); err != nil {
+		t.Fatalf("Pull failed: %v", err)
+	}
+	if err := mgr.LoadModel("demo"); err != nil {
+		t.Fatalf("LoadModel failed: %v", err)
+	}
+
+	if err := mgr.Remove("demo"); err != nil {
+		t.Fatalf("Remove of a Ready model should unload-then-remove, got: %v", err)
+	}
+	if _, ok := reg.Get("demo"); ok {
+		t.Fatal("expected 'demo' to be gone from the registry")
+	}
+	if got := mgr.Budget.AvailableBytes(); got != 1<<20 {
+		t.Fatalf("expected budget released after removing a Ready model, got %d", got)
+	}
+}
+
+func TestManager_RemoveUnregisteredFails(t *testing.T) {
+	reg := NewRegistry()
+	mgr := NewManager(reg, NewBudget(10), func() backend.InferenceBackend { return &stubBackend{} })
+
+	if err := mgr.Remove("nope"); err == nil {
+		t.Fatal("expected error removing an unregistered model")
+	}
+}
+
+func TestManager_RemoveRefusesMidTransition(t *testing.T) {
+	reg := NewRegistry()
+	mgr := NewManager(reg, NewBudget(10), func() backend.InferenceBackend { return &stubBackend{} })
+	m := &Model{Name: "busy-model", State: Busy}
+	_ = reg.Register(m)
+
+	if err := mgr.Remove("busy-model"); err == nil {
+		t.Fatal("expected error removing a model that's Busy")
+	}
+	if _, ok := reg.Get("busy-model"); !ok {
+		t.Fatal("model must still be registered after a refused Remove")
+	}
+}
+
 func TestRegistry_DuplicateRegisterFails(t *testing.T) {
 	reg := NewRegistry()
 	m := &Model{Name: "dup"}

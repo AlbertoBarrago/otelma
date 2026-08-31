@@ -94,6 +94,25 @@ smol                     READY        100.6MiB
 [ARCHITECTURE.md](ARCHITECTURE.md#2-local-runtime-api-internalapi) for what
 each one means and how transitions work.
 
+## Removing a model
+
+```sh
+otelma rm smol
+```
+
+Unregisters the model — `otelma ps` won't show it anymore, and it won't be
+restored on the next `serve` restart. If it's currently `READY`, `rm`
+unloads it first (kills the `llama-server` process, releases the memory
+budget) so nothing is left dangling. A model that's `LOADING`, `BUSY`, or
+`UNLOADING` — mid state-transition — is refused; wait for it to settle and
+try again.
+
+**`rm` never deletes the underlying `.gguf` file.** It's typically the
+shared Hugging Face cache (`~/.cache/huggingface`), which other tools —
+or a future `otelma pull` of the same repo — may still want. Re-pulling
+after `rm` is instant if the file is still cached; freeing actual disk
+space means deleting from the Hugging Face cache directly.
+
 ## Running a prompt
 
 Single-shot, no memory of prior turns:
@@ -136,13 +155,15 @@ otelma: load "big-model": cannot load model "big-model": cannot reserve 17179869
 ```
 
 This is the Budget doing its job — rejecting the load explicitly rather
-than letting the OS kill something under memory pressure. There is no
-`unload` CLI command yet in v0.1: restarting `otelma serve` frees every
-loaded model's budget reservation (nothing is actually `READY` right after
-a restart) while keeping every pulled model registered as `Downloaded` —
-see [Pulled models are remembered](#pulling-a-model) — so it's a safe way
-to reclaim memory without losing track of what you've pulled. Or raise
-`memory_budget_bytes` in the config file if your machine genuinely has more
+than letting the OS kill something under memory pressure. Restart
+`otelma serve` to free every loaded model's budget reservation at once
+while keeping everything registered as `Downloaded` — see
+[Pulled models are remembered](#pulling-a-model) — that's the way to
+reclaim memory without losing track of what you've pulled. (
+[`otelma rm`](#removing-a-model) also unloads a `READY` model, but it
+unregisters it too — you'd need to `pull` it again, instant if still
+cached, to use it later.) Or raise `memory_budget_bytes` in the config
+file if your machine genuinely has more
 headroom.
 
 ## Running the server explicitly

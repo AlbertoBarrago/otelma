@@ -195,6 +195,36 @@ func (mgr *Manager) UnloadModel(name string) error {
 	return mgr.Transition(m, Downloaded)
 }
 
+// Remove unregisters name so it no longer shows up in the registry (and
+// won't be restored on the next `otelma serve` start). If the model is
+// currently Ready, it's unloaded first so its budget reservation is
+// released cleanly; a model that's Loading, Busy, or Unloading — mid
+// state-transition — is refused rather than yanked out from under an
+// in-flight operation.
+//
+// Remove never touches the underlying file on disk: it's typically the
+// shared Hugging Face cache, which other registered models (or a future
+// `pull` of the same repo) may still need.
+func (mgr *Manager) Remove(name string) error {
+	m, ok := mgr.Registry.Get(name)
+	if !ok {
+		return fmt.Errorf("remove %q: model not registered", name)
+	}
+
+	switch m.State {
+	case Ready:
+		if err := mgr.UnloadModel(name); err != nil {
+			return fmt.Errorf("remove %q: %w", name, err)
+		}
+	case Loading, Busy, Unloading:
+		return fmt.Errorf("remove %q: model is %s, wait for it to settle before removing", name, m.State)
+	}
+
+	mgr.Registry.Unregister(name)
+	mgr.persist()
+	return nil
+}
+
 // Infer runs the given conversation against a Ready model, marking it Busy
 // for the duration. messages is the full turn history; messages[len-1] is
 // the newest turn.
