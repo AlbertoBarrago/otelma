@@ -4,10 +4,15 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/albz/otelma/internal/backend"
 	"github.com/albz/otelma/internal/storage"
 )
+
+// defaultHFDownloadTimeout is used when Manager.HFDownloadTimeout is left
+// at its zero value.
+const defaultHFDownloadTimeout = 30 * time.Minute
 
 // legalTransitions enumerates every allowed ModelState transition. Anything
 // not listed here is rejected by Transition, so the state machine is
@@ -45,6 +50,10 @@ type Manager struct {
 	// backend implementation (v0.1 wires in backend/echo).
 	NewBackend func() backend.InferenceBackend
 
+	// HFDownloadTimeout bounds a Pull from a Hugging Face reference. Zero
+	// means defaultHFDownloadTimeout.
+	HFDownloadTimeout time.Duration
+
 	backends map[string]backend.InferenceBackend
 }
 
@@ -66,9 +75,14 @@ func NewManager(registry *Registry, budget *Budget, newBackend func() backend.In
 // enters the registry in the Downloaded state. It does not touch the
 // memory budget.
 func (mgr *Manager) Pull(ctx context.Context, name, source string) (*Model, error) {
+	timeout := mgr.HFDownloadTimeout
+	if timeout == 0 {
+		timeout = defaultHFDownloadTimeout
+	}
+
 	path := source
 	if storage.IsHuggingFaceRef(source) {
-		resolved, err := storage.ResolveHuggingFace(ctx, source)
+		resolved, err := storage.ResolveHuggingFace(ctx, source, timeout)
 		if err != nil {
 			return nil, fmt.Errorf("pull %q: %w", name, err)
 		}

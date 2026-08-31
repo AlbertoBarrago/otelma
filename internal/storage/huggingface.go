@@ -21,7 +21,8 @@ func IsHuggingFaceRef(source string) bool {
 }
 
 // ResolveHuggingFace downloads (if not already cached) the GGUF file for
-// ref = "<user>/<repo>[:quant]" and returns its local path.
+// ref = "<user>/<repo>[:quant]" and returns its local path. timeout bounds
+// the whole download+load; see config.Config.HuggingFaceDownloadTimeoutMinutes.
 //
 // It shells out to llama-cli's own `-hf` downloader (same resolver used by
 // llama-server) instead of reimplementing the Hugging Face API client and
@@ -29,13 +30,13 @@ func IsHuggingFaceRef(source string) bool {
 // exit immediately without generating, so this call is download-only in
 // effect. The resulting file is then located under the standard
 // huggingface_hub cache layout.
-func ResolveHuggingFace(ctx context.Context, ref string) (string, error) {
+func ResolveHuggingFace(ctx context.Context, ref string, timeout time.Duration) (string, error) {
 	repo := strings.TrimPrefix(ref, HFPrefix)
 	if repo == "" {
 		return "", fmt.Errorf("empty huggingface reference")
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// A non-empty prompt with -st (single-turn) is required for the process

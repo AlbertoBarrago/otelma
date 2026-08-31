@@ -11,10 +11,6 @@ import (
 	"time"
 )
 
-// DefaultBaseURL is the address the CLI talks to when serve is running
-// with its default settings.
-const DefaultBaseURL = "http://localhost:11535"
-
 type client struct {
 	baseURL string
 	http    *http.Client

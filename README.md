@@ -37,13 +37,34 @@ Four layers:
 
 - Go 1.24+
 - [llama.cpp](https://github.com/ggml-org/llama.cpp) for real inference:
-  `brew install llama.cpp`
+  `brew install llama.cpp` (installed automatically if you use the Homebrew
+  tap below)
+
+## Install
+
+### Homebrew (macOS)
+
+```sh
+brew tap albertobarrago/otelma
+brew install otelma
+```
+
+This builds `otelma` from the [v0.1.0 release
+source](https://github.com/AlbertoBarrago/otelma/releases) and pulls in
+`llama.cpp` automatically as a dependency. Formula source:
+[homebrew-otelma](https://github.com/AlbertoBarrago/homebrew-otelma).
+
+### From source
+
+```sh
+git clone https://github.com/AlbertoBarrago/otelma.git
+cd otelma
+go build -o otelma ./cmd/otelma
+```
 
 ## Usage
 
 ```sh
-go build -o otelma ./cmd/otelma
-
 # start the local runtime API server (background)
 ./otelma serve &
 
@@ -66,6 +87,35 @@ Hugging Face resolver (same one `llama-server -hf` uses), so auth tokens and
 caching behave exactly as they do with `llama-cli`/`llama-server` directly.
 Quant defaults to `Q4_K_M` if omitted.
 
+## Configuration
+
+Every hardcoded default lives in a single JSON file. Find it, create it,
+and inspect it with:
+
+```sh
+otelma config path    # print the file location
+otelma config init     # scaffold it with defaults, so it's there to edit
+otelma config show     # print the config otelma is actually using
+```
+
+The file lives at `~/Library/Application Support/otelma/config.json` on
+macOS (`$XDG_CONFIG_HOME/otelma/config.json` on Linux):
+
+```json
+{
+  "memory_budget_bytes": 25769803776,
+  "serve_addr": "localhost:11535",
+  "backend": "llamacpp",
+  "llamacpp_startup_timeout_seconds": 30,
+  "huggingface_download_timeout_minutes": 30,
+  "client_base_url": "http://localhost:11535"
+}
+```
+
+Any subset of fields may be present; missing ones keep their default. Flags
+on `otelma serve` (`-addr`, `-backend`, `-memory-budget-bytes`) override the
+config file for that single invocation.
+
 ## Development
 
 ```sh
@@ -80,7 +130,6 @@ gofmt -l .   # should print nothing
 v0.1: the full `pull → ps → run` pipeline works end-to-end with real
 inference via `llamacpp`. Known limitations:
 
-- Memory budget (24GB) is hardcoded, not yet configurable via flag.
 - Scheduler serializes dispatch with a single mutex; no priority/fairness
   queue yet.
 - No persistence: registry and state live only in the `serve` process's

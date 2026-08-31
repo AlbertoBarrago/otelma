@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -16,14 +17,10 @@ import (
 	"github.com/albz/otelma/internal/backend/echo"
 	"github.com/albz/otelma/internal/backend/llamacpp"
 	"github.com/albz/otelma/internal/catalog"
+	"github.com/albz/otelma/internal/config"
 	"github.com/albz/otelma/internal/manager"
 	"github.com/albz/otelma/internal/scheduler"
 )
-
-// v0.1MemoryBudgetBytes is the default unified memory ceiling: 24GB, the
-// target Apple Silicon hardware's total memory. Not yet configurable via
-// flag; that's a follow-up once real backends make it matter in practice.
-const v0dot1MemoryBudgetBytes = 24 * 1 << 30
 
 // Run dispatches os.Args[1:] to the appropriate subcommand and returns the
 // process exit code.
@@ -33,10 +30,14 @@ func Run(args []string) int {
 		return 1
 	}
 
-	baseURL := DefaultBaseURL
-	c := newClient(baseURL)
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "otelma: warning: using defaults,", err)
+		cfg = config.Default()
+	}
 
-	var err error
+	c := newClient(cfg.ClientBaseURL)
+
 	switch args[0] {
 	case "pull":
 		err = runPull(c, args[1:])
@@ -45,9 +46,11 @@ func Run(args []string) int {
 	case "run":
 		err = runRun(c, args[1:])
 	case "serve":
-		err = runServe(args[1:])
+		err = runServe(cfg, args[1:])
 	case "list":
 		err = runList(args[1:])
+	case "config":
+		err = runConfig(cfg, args[1:])
 	case "help", "-h", "--help":
 		printUsage()
 		return 0
@@ -77,6 +80,7 @@ commands:
   ps                       list known models and their state
   run <name> <prompt>      load (if needed) and run a prompt
   serve                    start the local runtime API server
+  config path|init|show    locate, scaffold, or print the config file
   help                     show this message
 
 run 'otelma <command> -h' for flags on commands that support them`)
@@ -159,20 +163,22 @@ func runRun(c *client, args []string) error {
 	return nil
 }
 
-func runServe(args []string) error {
+func runServe(cfg config.Config, args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
-	addr := fs.String("addr", "localhost:11535", "address to listen on")
-	backendName := fs.String("backend", "llamacpp", "inference backend: llamacpp or echo")
+	addr := fs.String("addr", cfg.ServeAddr, "address to listen on")
+	backendName := fs.String("backend", cfg.Backend, "inference backend: llamacpp or echo")
+	memoryBudgetBytes := fs.Uint64("memory-budget-bytes", cfg.MemoryBudgetBytes, "unified memory ceiling in bytes")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
+	llamaTimeout := time.Duration(cfg.LlamaCppStartupTimeoutSeconds) * time.Second
 	var newBackend func() backend.InferenceBackend
 	switch *backendName {
 	case "llamacpp":
-		newBackend = func() backend.InferenceBackend { return llamacpp.New(30 * time.Second) }
+		newBackend = func() backend.InferenceBackend { return llamacpp.New(llamaTimeout) }
 	case "echo":
 		newBackend = func() backend.InferenceBackend { return echo.New() }
 	default:
@@ -180,14 +186,55 @@ func runServe(args []string) error {
 	}
 
 	reg := manager.NewRegistry()
-	budget := manager.NewBudget(v0dot1MemoryBudgetBytes)
+	budget := manager.NewBudget(*memoryBudgetBytes)
 	mgr := manager.NewManager(reg, budget, newBackend)
+	mgr.HFDownloadTimeout = time.Duration(cfg.HuggingFaceDownloadTimeoutMinutes) * time.Minute
 	sched := scheduler.New(mgr)
 	srv := api.New(mgr, sched, log)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	log.Info("otelma server starting", "addr", *addr, "memory_budget_bytes", v0dot1MemoryBudgetBytes)
+	log.Info("otelma server starting", "addr", *addr, "memory_budget_bytes", *memoryBudgetBytes, "backend", *backendName)
 	return srv.ListenAndServe(ctx, *addr)
+}
+
+func runConfig(cfg config.Config, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: otelma config path|init|show")
+	}
+
+	switch args[0] {
+	case "path":
+		path, err := config.Path()
+		if err != nil {
+			return err
+		}
+		fmt.Println(path)
+		return nil
+
+	case "init":
+		fs := flag.NewFlagSet("config init", flag.ContinueOnError)
+		force := fs.Bool("force", false, "overwrite an existing config file")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		path, err := config.Init(config.Default(), *force)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("wrote default config to %s\n", path)
+		return nil
+
+	case "show":
+		data, err := json.MarshalIndent(cfg, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+		return nil
+
+	default:
+		return fmt.Errorf("usage: otelma config path|init|show")
+	}
 }
