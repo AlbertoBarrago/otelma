@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -58,10 +59,22 @@ func NewManager(registry *Registry, budget *Budget, newBackend func() backend.In
 	}
 }
 
-// Pull registers a model already present on disk at path: computes its
-// checksum and size, and enters it into the registry in the Downloaded
-// state. It does not touch the memory budget.
-func (mgr *Manager) Pull(name, path string) (*Model, error) {
+// Pull registers a model from source, which is either a local file path or
+// a Hugging Face reference ("hf:<user>/<repo>[:quant]"). Hugging Face
+// sources are downloaded first (see storage.ResolveHuggingFace); either way
+// the resulting local file's checksum and size are computed and the model
+// enters the registry in the Downloaded state. It does not touch the
+// memory budget.
+func (mgr *Manager) Pull(ctx context.Context, name, source string) (*Model, error) {
+	path := source
+	if storage.IsHuggingFaceRef(source) {
+		resolved, err := storage.ResolveHuggingFace(ctx, source)
+		if err != nil {
+			return nil, fmt.Errorf("pull %q: %w", name, err)
+		}
+		path = resolved
+	}
+
 	checksum, err := storage.Checksum(path)
 	if err != nil {
 		return nil, fmt.Errorf("pull %q: %w", name, err)

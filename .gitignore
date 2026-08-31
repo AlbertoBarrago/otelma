@@ -1,6 +1,11 @@
 /bin/
+/otelma
+/otelma-*
 *.gguf
 *.bin
+*.test
+*.out
+coverage.txt
 .env
 .DS_Store
 CLAUDE.local.md

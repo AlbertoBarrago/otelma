@@ -70,7 +70,7 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m, err := s.mgr.Pull(req.Name, req.Path)
+	m, err := s.mgr.Pull(r.Context(), req.Name, req.Path)
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err)
 		return

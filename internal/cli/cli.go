@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/albz/otelma/internal/backend"
 	"github.com/albz/otelma/internal/backend/echo"
 	"github.com/albz/otelma/internal/backend/llamacpp"
+	"github.com/albz/otelma/internal/catalog"
 	"github.com/albz/otelma/internal/manager"
 	"github.com/albz/otelma/internal/scheduler"
 )
@@ -44,6 +46,8 @@ func Run(args []string) int {
 		err = runRun(c, args[1:])
 	case "serve":
 		err = runServe(args[1:])
+	case "list":
+		err = runList(args[1:])
 	default:
 		printUsage()
 		return 1
@@ -60,21 +64,39 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, `usage: otelma <command> [arguments]
 
 commands:
-  pull <name> <path>     register a local model file
-  ps                      list known models and their state
-  run <name> <prompt>     load (if needed) and run a prompt
-  serve                   start the local runtime API server`)
+  pull <name> <source>    register a model: <source> is a local file path
+                          or a Hugging Face reference "hf:<user>/<repo>[:quant]"
+  list                     show curated Hugging Face models known to fit the
+                          local memory budget, ready to use with pull
+  ps                       list known models and their state
+  run <name> <prompt>      load (if needed) and run a prompt
+  serve                    start the local runtime API server`)
 }
 
 func runPull(c *client, args []string) error {
 	if len(args) != 2 {
-		return fmt.Errorf("usage: otelma pull <name> <path>")
+		return fmt.Errorf(`usage: otelma pull <name> <source>
+  <source> is a local file path or "hf:<user>/<repo>[:quant]" (see otelma list)`)
+	}
+	name, source := args[0], args[1]
+	if strings.HasPrefix(source, "hf:") {
+		fmt.Printf("downloading %s from Hugging Face, this can take a while for larger models...\n", source)
 	}
 	var out map[string]any
-	if err := c.post("/api/pull", map[string]string{"name": args[0], "path": args[1]}, &out); err != nil {
+	if err := c.post("/api/pull", map[string]string{"name": name, "path": source}, &out); err != nil {
 		return err
 	}
 	fmt.Printf("pulled %s (state=%s)\n", out["name"], out["state"])
+	return nil
+}
+
+func runList(args []string) error {
+	fmt.Printf("%-16s %-8s %s\n", "NAME", "SIZE", "SOURCE")
+	for _, e := range catalog.Entries {
+		fmt.Printf("%-16s %-8s %s\n", e.Name, formatBytes(e.ApproxBytes), e.HFRef)
+		fmt.Printf("%-16s %-8s %s\n", "", "", e.Description)
+	}
+	fmt.Println("\npull one with: otelma pull <local-name> <SOURCE column above>")
 	return nil
 }
 

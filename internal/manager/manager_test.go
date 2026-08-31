@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -115,7 +116,7 @@ func TestManager_PullLoadInferUnload(t *testing.T) {
 	reg := NewRegistry()
 	mgr := NewManager(reg, NewBudget(1<<20), func() backend.InferenceBackend { return &stubBackend{} })
 
-	m, err := mgr.Pull("demo", path)
+	m, err := mgr.Pull(context.Background(), "demo", path)
 	if err != nil {
 		t.Fatalf("Pull failed: %v", err)
 	}

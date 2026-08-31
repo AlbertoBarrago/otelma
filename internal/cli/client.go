@@ -20,8 +20,10 @@ type client struct {
 	http    *http.Client
 }
 
+// timeout is generous because pull can trigger a Hugging Face model
+// download (see storage.ResolveHuggingFace), which may take minutes.
 func newClient(baseURL string) *client {
-	return &client{baseURL: baseURL, http: &http.Client{Timeout: 60 * time.Second}}
+	return &client{baseURL: baseURL, http: &http.Client{Timeout: 30 * time.Minute}}
 }
 
 func (c *client) post(path string, body, out any) error {
