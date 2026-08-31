@@ -75,6 +75,12 @@ loaded, so it's never a guess. The first `hf:` pull of a given repo can
 take a while (real download); repeat pulls of the same repo/quant are
 instant (cached under `~/.cache/huggingface`).
 
+**Pulled models are remembered.** The registry persists to disk after
+every successful `pull`, so an `otelma serve` restart doesn't lose track
+of what you already have — `otelma ps` shows it again immediately, still
+`Downloaded`, no re-download. See
+[ARCHITECTURE.md](ARCHITECTURE.md#model-manager-internalmanager) for how.
+
 ## Checking status
 
 ```sh
@@ -130,9 +136,12 @@ otelma: load "big-model": cannot load model "big-model": cannot reserve 17179869
 ```
 
 This is the Budget doing its job — rejecting the load explicitly rather
-than letting the OS kill something under memory pressure. Unload the model
-you don't need right now (there is no `unload` CLI command yet in v0.1;
-restarting `otelma serve` clears all state) or raise
+than letting the OS kill something under memory pressure. There is no
+`unload` CLI command yet in v0.1: restarting `otelma serve` frees every
+loaded model's budget reservation (nothing is actually `READY` right after
+a restart) while keeping every pulled model registered as `Downloaded` —
+see [Pulled models are remembered](#pulling-a-model) — so it's a safe way
+to reclaim memory without losing track of what you've pulled. Or raise
 `memory_budget_bytes` in the config file if your machine genuinely has more
 headroom.
 

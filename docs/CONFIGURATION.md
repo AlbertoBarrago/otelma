@@ -18,6 +18,12 @@ Location: `os.UserConfigDir()/otelma/config.json`, which resolves to
 `$XDG_CONFIG_HOME/otelma/config.json` (or `~/.config/otelma/config.json`)
 on Linux.
 
+A sibling file, `registry.json` in the same directory, holds the persisted
+list of pulled models (see
+[ARCHITECTURE.md](ARCHITECTURE.md#model-manager-internalmanager)) — not
+user-edited config, but worth knowing it's there if you're inspecting the
+directory or scripting a clean reset (delete both files to start fresh).
+
 A missing file is not an error — `otelma config show` (and every command
 that loads config internally) falls back to built-in defaults. A partial
 file is merged onto the defaults field-by-field, so you only need to write

@@ -77,6 +77,16 @@ The core of the memory-safety story. Two pieces:
 local name. `Pull` computes a real sha256 checksum and file size before
 registering, so a `Model`'s `MemoryFootprintBytes` is never a guess.
 
+The registry persists to disk (`internal/manager/persist.go`,
+`SaveRegistry`/`LoadRegistry`): `Manager.Pull` writes it (atomically — temp
+file + rename) after every successful registration, and `otelma serve`
+loads it on startup. Only identity fields are persisted (name, path,
+checksum, size) — never `State`. A transient state like `READY` or `BUSY`
+never survives a restart honestly, since no backend process is actually
+resident after one, so `LoadRegistry` always restores everything as
+`Downloaded`, and drops any entry whose file no longer exists on disk
+rather than restoring a dangling reference.
+
 **State machine** — every `Model` moves through an explicit, exhaustively
 enumerated graph (`legalTransitions` in `manager.go`):
 

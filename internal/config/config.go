@@ -55,6 +55,17 @@ func Path() (string, error) {
 	return filepath.Join(dir, "otelma", "config.json"), nil
 }
 
+// RegistryPath returns where `otelma serve` persists the pulled-model
+// registry (see manager.SaveRegistry/LoadRegistry): a sibling of the
+// config file, same directory.
+func RegistryPath() (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve user config dir: %w", err)
+	}
+	return filepath.Join(dir, "otelma", "registry.json"), nil
+}
+
 // Load reads the config file if present and merges it onto Default();
 // missing fields (or a missing file entirely) keep their default value. A
 // missing file is not an error.

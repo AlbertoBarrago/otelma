@@ -97,6 +97,11 @@ Hugging Face resolver (same one `llama-server -hf` uses), so auth tokens and
 caching behave exactly as they do with `llama-cli`/`llama-server` directly.
 Quant defaults to `Q4_K_M` if omitted.
 
+Pulled models are remembered: the registry persists to disk after every
+successful `pull`, so restarting `otelma serve` (or letting it auto-start
+again) doesn't lose track of what you already have — `otelma ps` shows it
+immediately, no re-download.
+
 ### Chat
 
 `otelma chat <name>` keeps the full conversation transcript and resends it
@@ -187,11 +192,11 @@ gofmt -l .   # should print nothing
 ## Status
 
 v0.1: the full `pull → ps → run/chat` pipeline works end-to-end with real
-inference via `llamacpp`, auto-starting the server when needed. Known
+inference via `llamacpp`, auto-starting the server when needed. Pulled
+models survive a `serve` restart (the registry persists to disk). Known
 limitations:
 
 - Scheduler serializes dispatch with a single mutex; no priority/fairness
   queue yet.
-- No persistence: registry and state live only in the `serve` process's
-  memory.
 - `internal/backend/mlx` (native Apple Silicon backend) is not implemented.
+- No `otelma rm` yet to unregister/remove a pulled model.

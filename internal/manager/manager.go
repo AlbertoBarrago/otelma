@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -53,6 +54,18 @@ type Manager struct {
 	// HFDownloadTimeout bounds a Pull from a Hugging Face reference. Zero
 	// means defaultHFDownloadTimeout.
 	HFDownloadTimeout time.Duration
+
+	// RegistryPath, if set, is where Pull persists the registry after
+	// successfully registering a new model, so `otelma pull`'d models
+	// survive an `otelma serve` restart instead of vanishing from `ps`
+	// while the underlying file sits untouched on disk. Empty disables
+	// persistence.
+	RegistryPath string
+	// Log receives non-fatal persistence failures. A failed write here
+	// must not fail the Pull that triggered it (the model is still usable
+	// this session) but the user should be able to see why it won't
+	// survive a restart. Nil discards them.
+	Log *slog.Logger
 
 	backends map[string]backend.InferenceBackend
 }
@@ -111,7 +124,20 @@ func (mgr *Manager) Pull(ctx context.Context, name, source string) (*Model, erro
 	if err := mgr.Transition(m, Downloaded); err != nil {
 		return nil, fmt.Errorf("pull %q: %w", name, err)
 	}
+	mgr.persist()
 	return m, nil
+}
+
+// persist saves the registry if RegistryPath is set, logging (not
+// returning) any failure: a disk write problem shouldn't undo the Pull
+// that just succeeded in memory.
+func (mgr *Manager) persist() {
+	if mgr.RegistryPath == "" {
+		return
+	}
+	if err := SaveRegistry(mgr.Registry, mgr.RegistryPath); err != nil && mgr.Log != nil {
+		mgr.Log.Warn("failed to persist registry; pulled models won't survive a restart", "error", err)
+	}
 }
 
 // LoadModel moves a Downloaded model through Loading into Ready, reserving

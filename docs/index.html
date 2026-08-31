@@ -209,6 +209,7 @@ otelma chat qwen2.5-0.5b        # interactive, multi-turn</code></pre>
           <li>Curated model catalog (<code>otelma list</code>)</li>
           <li>Configurable via a single JSON file (<code>otelma config</code>)</li>
           <li>Server auto-starts in the background when needed</li>
+          <li>Pulled models survive a server restart (registry persists to disk)</li>
           <li>OpenAI-compatible <code>/v1/chat/completions</code> (no streaming)</li>
         </ul>
       </div>
@@ -216,7 +217,7 @@ otelma chat qwen2.5-0.5b        # interactive, multi-turn</code></pre>
         <p style="margin:0 0 0.4rem;font-weight:600">Known limitations</p>
         <ul class="plain">
           <li>Scheduler: single mutex, no priority queue</li>
-          <li>No persistence across server restarts</li>
+          <li>No <code>otelma rm</code> yet to unregister a model</li>
         </ul>
       </div>
     </div>

@@ -229,10 +229,23 @@ func runServe(cfg config.Config, args []string) error {
 		return fmt.Errorf("unknown backend %q (want llamacpp or echo)", *backendName)
 	}
 
-	reg := manager.NewRegistry()
+	regPath, err := config.RegistryPath()
+	if err != nil {
+		return fmt.Errorf("resolve registry path: %w", err)
+	}
+	reg, err := manager.LoadRegistry(regPath)
+	if err != nil {
+		log.Warn("failed to load persisted registry, starting empty", "error", err, "path", regPath)
+		reg = manager.NewRegistry()
+	} else if n := len(reg.List()); n > 0 {
+		log.Info("restored registry from disk", "models", n, "path", regPath)
+	}
+
 	budget := manager.NewBudget(*memoryBudgetBytes)
 	mgr := manager.NewManager(reg, budget, newBackend)
 	mgr.HFDownloadTimeout = time.Duration(cfg.HuggingFaceDownloadTimeoutMinutes) * time.Minute
+	mgr.RegistryPath = regPath
+	mgr.Log = log
 	sched := scheduler.New(mgr)
 	srv := api.New(mgr, sched, log)
 
