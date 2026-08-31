@@ -43,7 +43,7 @@ is a complete, valid config file that overrides only the port.
 |---|---|---|
 | `memory_budget_bytes` | `25769803776` (24GB) | The unified memory ceiling `Budget` enforces. A `Loading` transition that would push reserved memory past this is rejected before it happens. See [ARCHITECTURE.md](ARCHITECTURE.md#model-manager-internalmanager). |
 | `serve_addr` | `"localhost:11535"` | Address `otelma serve` listens on. Must match `client_base_url` (below) for the CLI's auto-start and requests to reach it. |
-| `backend` | `"llamacpp"` | Which `InferenceBackend` `otelma serve` wires in: `"llamacpp"` for real inference, `"echo"` for a no-op stand-in (testing the pipeline without llama.cpp installed). |
+| `backend` | `"llamacpp"` | Which `InferenceBackend` `otelma serve` wires in: `"llamacpp"` (GGUF, real inference), `"mlx"` (MLX, real inference, Apple Silicon only, needs `pip install mlx-lm`), or `"echo"` for a no-op stand-in. One backend serves every loaded model — see [GUIDE.md](GUIDE.md#using-the-mlx-backend). |
 | `llamacpp_startup_timeout_seconds` | `30` | How long `Load` waits for a spawned `llama-server` process to report `/health` before giving up. Raise this for large models on slower hardware. |
 | `huggingface_download_timeout_minutes` | `30` | Upper bound on a `pull hf:...` call, covering both the download and llama.cpp's own load-to-verify step. Raise this for large models on a slow connection. |
 | `client_base_url` | `"http://localhost:11535"` | Address the CLI talks to as an HTTP client — for `pull`/`ps`/`run`/`chat`, and for `ensureServerRunning`'s health check before auto-starting a server. |
@@ -87,5 +87,13 @@ llama.cpp):
 ```json
 {
   "backend": "echo"
+}
+```
+
+**Use MLX by default** (Apple Silicon, `pip install mlx-lm` first):
+
+```json
+{
+  "backend": "mlx"
 }
 ```

@@ -142,32 +142,49 @@ type InferenceBackend interface {
 ```
 
 Neither the manager nor the scheduler know which concrete engine they're
-driving. Two implementations exist:
+driving. Three implementations exist, all spawning a subprocess and
+talking to its OpenAI-compatible HTTP API — no direct linking against a
+C library or Python runtime from Go:
 
-- **`llamacpp`** (`internal/backend/llamacpp`) — the real one. `Load`
-  spawns `llama-server` (from
-  [llama.cpp](https://github.com/ggml-org/llama.cpp)) as a child process
-  bound to a free local port and polls `/health` until it's ready; `Infer`
-  POSTs the full message history to its OpenAI-compatible
-  `/v1/chat/completions` endpoint; `Unload` kills the process. Because a
-  real OS process is spawned and killed, the manager's `READY` state
-  genuinely corresponds to resident memory, not an assumption.
+- **`llamacpp`** (`internal/backend/llamacpp`) — `Load` spawns
+  `llama-server` (from [llama.cpp](https://github.com/ggml-org/llama.cpp))
+  as a child process bound to a free local port and polls `/health` until
+  it's ready; `Infer` POSTs the full message history to its
+  `/v1/chat/completions` endpoint; `Unload` kills the process. GGUF models
+  (a single file). Because a real OS process is spawned and killed, the
+  manager's `READY` state genuinely corresponds to resident memory, not an
+  assumption.
+- **`mlx`** (`internal/backend/mlx`) — the same pattern, spawning
+  `mlx_lm.server` (from [mlx-lm](https://github.com/ml-explore/mlx-lm))
+  instead. Native to Apple Silicon. MLX models are a *directory* (weights
+  as safetensors, tokenizer, config), not a single file — see the Model
+  storage section below for how that changes `Pull`.
 - **`echo`** (`internal/backend/echo`) — a no-op stand-in that echoes the
   last message back with a fixed prefix. Exists so the full
-  pull→load→infer→unload pipeline is testable without llama.cpp installed
-  (`otelma serve --backend echo`).
+  pull→load→infer→unload pipeline is testable without either real backend
+  installed (`otelma serve --backend echo`).
 
-`internal/backend/mlx` is a placeholder for a future native Apple Silicon
-backend (MLX instead of llama.cpp); not implemented yet.
+`otelma serve`'s `-backend` flag (or `backend` in the config file) picks
+one engine for the whole server process — every loaded model uses it.
+Pulling an `hf:` (GGUF) model while running `-backend mlx`, or an `mlx:`
+model while running the default `-backend llamacpp`, registers fine but
+fails at load time: the backend doesn't know what to do with that path
+shape. There's no per-model backend selection yet.
 
 ## 4. Model storage (`internal/storage`)
 
-Two responsibilities:
+Two responsibilities, generalized for both a single file (GGUF) and a
+directory of files (MLX):
 
-- **Local files**: `Checksum` (sha256) and `Size`, used by `Manager.Pull`
-  to populate a `Model`'s identity and memory footprint from the real file
-  on disk.
-- **Hugging Face downloads**: `ResolveHuggingFace` shells out to
+- **Local files/directories**: `Checksum`/`Size` for a single file, or
+  `DirChecksum`/`DirSize` (sha256 over every file's sorted relative path +
+  content; total size following symlinks — the Hugging Face cache stores
+  files as symlinks into a content-addressed blob store) for a directory.
+  `Manager.Pull` picks whichever applies via `os.Stat(path).IsDir()` after
+  resolving the source, so the budget accounting is equally honest for
+  either shape, and populates a `Model`'s identity and memory footprint
+  from the real file(s) on disk.
+- **Hugging Face downloads (GGUF)**: `ResolveHuggingFace` shells out to
   `llama-cli -hf <repo>` (llama.cpp's own downloader — same one
   `llama-server -hf` uses) rather than reimplementing the Hugging Face API
   client and its auth/redirect handling, then locates the resulting
@@ -177,6 +194,12 @@ Two responsibilities:
   `llama-cli` actually exit after the download instead of spinning forever
   reading empty turns from closed stdin — see the comment in
   `internal/storage/huggingface.go` for the full story.
+- **Hugging Face downloads (MLX)**: `ResolveMLX` shells out to
+  `mlx_lm.generate --model <repo> --max-tokens 1 --prompt hi` (mlx-lm's own
+  downloader) for the same reason, then locates the resulting *snapshot
+  directory* (not a single file) under the same cache layout
+  (`.../snapshots/<revision>/`). Unlike `llama-cli`, `mlx_lm.generate` exits
+  cleanly on its own once done — no REPL-hang workaround needed.
 
 ## Configuration (`internal/config`)
 

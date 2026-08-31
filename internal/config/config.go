@@ -20,7 +20,7 @@ type Config struct {
 	MemoryBudgetBytes uint64 `json:"memory_budget_bytes"`
 	// ServeAddr is the default address `otelma serve` listens on.
 	ServeAddr string `json:"serve_addr"`
-	// Backend is the default inference backend: "llamacpp" or "echo".
+	// Backend is the default inference backend: "llamacpp", "mlx", or "echo".
 	Backend string `json:"backend"`
 	// LlamaCppStartupTimeoutSeconds bounds how long Load waits for
 	// llama-server to report healthy before giving up.

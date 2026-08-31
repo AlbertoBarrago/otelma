@@ -17,6 +17,7 @@ import (
 	"github.com/albz/otelma/internal/backend"
 	"github.com/albz/otelma/internal/backend/echo"
 	"github.com/albz/otelma/internal/backend/llamacpp"
+	"github.com/albz/otelma/internal/backend/mlx"
 	"github.com/albz/otelma/internal/catalog"
 	"github.com/albz/otelma/internal/config"
 	"github.com/albz/otelma/internal/manager"
@@ -90,8 +91,9 @@ func printUsage() {
 	fmt.Println(`usage: otelma <command> [arguments]
 
 commands:
-  pull <name> [source]    register a model: <source> is a local file path
-                          or "hf:<user>/<repo>[:quant]"; omit it if <name>
+  pull <name> [source]    register a model: <source> is a local file path,
+                          "hf:<user>/<repo>[:quant]" (llamacpp), or
+                          "mlx:<user>/<repo>" (mlx); omit it if <name>
                           matches an entry from 'list'
   list                     show curated Hugging Face models known to fit the
                           local memory budget, ready to use with pull
@@ -127,9 +129,10 @@ func runPull(c *client, args []string) error {
 		name, source = args[0], args[1]
 	default:
 		return fmt.Errorf(`usage: otelma pull <name> <source>
-  <source> is a local file path or "hf:<user>/<repo>[:quant]" (see otelma list)`)
+  <source> is a local file path, "hf:<user>/<repo>[:quant]" (llamacpp
+  backend), or "mlx:<user>/<repo>" (mlx backend) (see otelma list)`)
 	}
-	if strings.HasPrefix(source, "hf:") {
+	if strings.HasPrefix(source, "hf:") || strings.HasPrefix(source, "mlx:") {
 		fmt.Printf("downloading %s from Hugging Face, this can take a while for larger models...\n", source)
 	}
 	var out map[string]any
@@ -229,7 +232,7 @@ func runRun(c *client, args []string) error {
 func runServe(cfg config.Config, args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	addr := fs.String("addr", cfg.ServeAddr, "address to listen on")
-	backendName := fs.String("backend", cfg.Backend, "inference backend: llamacpp or echo")
+	backendName := fs.String("backend", cfg.Backend, "inference backend: llamacpp, mlx, or echo")
 	memoryBudgetBytes := fs.Uint64("memory-budget-bytes", cfg.MemoryBudgetBytes, "unified memory ceiling in bytes")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -237,15 +240,20 @@ func runServe(cfg config.Config, args []string) error {
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
-	llamaTimeout := time.Duration(cfg.LlamaCppStartupTimeoutSeconds) * time.Second
+	// Startup timeout applies to whichever backend is selected: how long
+	// Load waits for the spawned subprocess (llama-server / mlx_lm.server)
+	// to report healthy.
+	startupTimeout := time.Duration(cfg.LlamaCppStartupTimeoutSeconds) * time.Second
 	var newBackend func() backend.InferenceBackend
 	switch *backendName {
 	case "llamacpp":
-		newBackend = func() backend.InferenceBackend { return llamacpp.New(llamaTimeout) }
+		newBackend = func() backend.InferenceBackend { return llamacpp.New(startupTimeout) }
+	case "mlx":
+		newBackend = func() backend.InferenceBackend { return mlx.New(startupTimeout) }
 	case "echo":
 		newBackend = func() backend.InferenceBackend { return echo.New() }
 	default:
-		return fmt.Errorf("unknown backend %q (want llamacpp or echo)", *backendName)
+		return fmt.Errorf("unknown backend %q (want llamacpp, mlx, or echo)", *backendName)
 	}
 
 	regPath, err := config.RegistryPath()

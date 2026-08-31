@@ -175,14 +175,45 @@ otelma serve -addr localhost:9999 -backend echo -memory-budget-bytes 8589934592
 Flags override the config file for that one invocation:
 
 - `-addr` — address to listen on (default from config: `serve_addr`)
-- `-backend` — `llamacpp` (real inference) or `echo` (no-op stand-in, for
-  testing the pipeline without llama.cpp installed)
+- `-backend` — `llamacpp` (GGUF, real inference), `mlx` (MLX, real
+  inference, Apple Silicon only), or `echo` (no-op stand-in, for testing
+  the pipeline without either installed)
 - `-memory-budget-bytes` — the unified memory ceiling
 
 If you point the CLI's `client_base_url` at a different `-addr`, update the
 config file to match (see [CONFIGURATION.md](CONFIGURATION.md)) — otherwise
 `ensureServerRunning` won't find the server you started and will spawn a
 second one on the default address.
+
+## Using the MLX backend
+
+```sh
+pip install mlx-lm
+otelma serve -backend mlx &
+
+otelma pull qwen-mlx mlx:mlx-community/Qwen2.5-0.5B-Instruct-4bit
+otelma run qwen-mlx "What is the capital of France?"
+```
+
+`mlx:<user>/<repo>` needs an MLX-format repo, not a GGUF one — look for
+`mlx-community/...` on Hugging Face (search "MLX" there), not `bartowski/...`
+GGUF repos. Everything else works identically to the `llamacpp` path:
+`pull` downloads (via `mlx_lm.generate`'s own resolver, so the same
+`~/.cache/huggingface` cache and auth apply), `run`/`chat`/`rm` behave the
+same, and the registry persists it the same way. The one structural
+difference: an MLX model is a *directory* of files (safetensors,
+tokenizer, config), not a single `.gguf`, so `otelma ps`'s `MEMORY` column
+reflects the whole directory's size (see
+[ARCHITECTURE.md](ARCHITECTURE.md#4-model-storage-internalstorage)).
+
+**One `otelma serve` process runs one backend for every model it has
+loaded.** If you `pull` an `hf:` (GGUF) model while running
+`-backend mlx`, or an `mlx:` model while running the default
+`-backend llamacpp`, the pull itself succeeds (registration doesn't care
+which backend is active) but loading it — `run`/`chat` — fails, because
+the active backend doesn't understand that model's path shape. There's no
+per-model backend selection yet; pick one backend per `serve` session
+based on which kind of model you're using.
 
 ## OpenAI-compatible API
 

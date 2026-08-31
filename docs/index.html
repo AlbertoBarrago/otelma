@@ -141,9 +141,11 @@ brew install otelma</code></pre>
 <pre><code>git clone https://github.com/AlbertoBarrago/otelma.git
 cd otelma
 go build -o otelma ./cmd/otelma</code></pre>
-      <p class="d" style="color:var(--text-dim);margin-top:0.6rem">Requires Go 1.24+ and
-        <a href="https://github.com/ggml-org/llama.cpp">llama.cpp</a> (<code>brew install llama.cpp</code>)
-        on PATH for real inference.</p>
+      <p class="d" style="color:var(--text-dim);margin-top:0.6rem">Requires Go 1.24+, and for real
+        inference either <a href="https://github.com/ggml-org/llama.cpp">llama.cpp</a>
+        (<code>brew install llama.cpp</code>, GGUF models) or
+        <a href="https://github.com/ml-explore/mlx-lm">mlx-lm</a>
+        (<code>pip install mlx-lm</code>, Apple Silicon, MLX models) on PATH.</p>
     </div>
   </section>
 
@@ -184,13 +186,16 @@ otelma chat qwen2.5-0.5b        # interactive, multi-turn</code></pre>
         <div class="n">03</div>
         <div class="t">Inference backend abstraction</div>
         <p class="d">A common interface behind which concrete engines live: llamacpp (spawns
-          llama-server per model) today, MLX planned.</p>
+          llama-server, GGUF) and mlx (spawns mlx_lm.server, native Apple Silicon), both talking
+          OpenAI-compatible HTTP to their subprocess, plus an echo stand-in for testing.</p>
       </div>
       <div class="layer">
         <div class="n">04</div>
         <div class="t">Model storage</div>
-        <p class="d">Checksum/size of local GGUF files, plus a Hugging Face downloader for
-          <code>pull &lt;name&gt; hf:&lt;user&gt;/&lt;repo&gt;</code>.</p>
+        <p class="d">Checksum/size of a local model — a single GGUF file, or (for MLX) a whole
+          directory — plus a Hugging Face downloader for both
+          <code>pull &lt;name&gt; hf:&lt;user&gt;/&lt;repo&gt;</code> and
+          <code>pull &lt;name&gt; mlx:&lt;user&gt;/&lt;repo&gt;</code>.</p>
       </div>
     </div>
   </section>
@@ -217,13 +222,14 @@ otelma chat qwen2.5-0.5b        # interactive, multi-turn</code></pre>
           <li>Pulled models survive a server restart (registry persists to disk)</li>
           <li>OpenAI-compatible <code>/v1/chat/completions</code> (no streaming)</li>
           <li><code>otelma rm</code> to unregister a model (unloads it first if READY)</li>
+          <li>MLX backend (Apple Silicon native) alongside llamacpp</li>
         </ul>
       </div>
       <div>
         <p style="margin:0 0 0.4rem;font-weight:600">Known limitations</p>
         <ul class="plain">
           <li>Scheduler: single mutex, no priority queue</li>
-          <li>MLX native Apple Silicon backend not implemented</li>
+          <li>One backend per server process, no per-model selection</li>
         </ul>
       </div>
     </div>

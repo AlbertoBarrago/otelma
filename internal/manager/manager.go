@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -81,12 +82,16 @@ func NewManager(registry *Registry, budget *Budget, newBackend func() backend.In
 	}
 }
 
-// Pull registers a model from source, which is either a local file path or
-// a Hugging Face reference ("hf:<user>/<repo>[:quant]"). Hugging Face
-// sources are downloaded first (see storage.ResolveHuggingFace); either way
-// the resulting local file's checksum and size are computed and the model
-// enters the registry in the Downloaded state. It does not touch the
-// memory budget.
+// Pull registers a model from source: a local file path, a Hugging Face
+// GGUF reference ("hf:<user>/<repo>[:quant]", for the llamacpp backend), or
+// an MLX model reference ("mlx:<user>/<repo>", for the mlx backend). A
+// Hugging Face/MLX source is downloaded first (see
+// storage.ResolveHuggingFace / storage.ResolveMLX); either way the
+// resulting local path's checksum and size are computed — a single file's
+// via storage.Checksum/Size, or (for an MLX model, which is a directory of
+// safetensors/tokenizer/config files) via storage.DirChecksum/DirSize — and
+// the model enters the registry in the Downloaded state. It does not touch
+// the memory budget.
 func (mgr *Manager) Pull(ctx context.Context, name, source string) (*Model, error) {
 	timeout := mgr.HFDownloadTimeout
 	if timeout == 0 {
@@ -94,19 +99,39 @@ func (mgr *Manager) Pull(ctx context.Context, name, source string) (*Model, erro
 	}
 
 	path := source
-	if storage.IsHuggingFaceRef(source) {
+	switch {
+	case storage.IsHuggingFaceRef(source):
 		resolved, err := storage.ResolveHuggingFace(ctx, source, timeout)
+		if err != nil {
+			return nil, fmt.Errorf("pull %q: %w", name, err)
+		}
+		path = resolved
+	case storage.IsMLXRef(source):
+		resolved, err := storage.ResolveMLX(ctx, source, timeout)
 		if err != nil {
 			return nil, fmt.Errorf("pull %q: %w", name, err)
 		}
 		path = resolved
 	}
 
-	checksum, err := storage.Checksum(path)
+	info, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("pull %q: %w", name, err)
 	}
-	size, err := storage.Size(path)
+
+	var checksum string
+	var size uint64
+	if info.IsDir() {
+		checksum, err = storage.DirChecksum(path)
+		if err == nil {
+			size, err = storage.DirSize(path)
+		}
+	} else {
+		checksum, err = storage.Checksum(path)
+		if err == nil {
+			size, err = storage.Size(path)
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("pull %q: %w", name, err)
 	}

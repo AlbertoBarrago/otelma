@@ -31,18 +31,26 @@ Four layers:
    - `llamacpp`: spawns `llama-server` (from
      [llama.cpp](https://github.com/ggml-org/llama.cpp)) per loaded model and
      talks to its OpenAI-compatible HTTP API. Requires `llama-server` on
-     `PATH`.
+     `PATH`. GGUF models.
+   - `mlx`: spawns `mlx_lm.server` (from
+     [mlx-lm](https://github.com/ml-explore/mlx-lm)) per loaded model, same
+     pattern. Requires `mlx_lm.server` on `PATH` (`pip install mlx-lm`).
+     Native to Apple Silicon; MLX-format models (safetensors, a directory
+     per model, not a single file).
    - `echo`: a no-op stand-in that echoes the prompt back, useful for
-     exercising the full pipeline without llama.cpp installed.
-4. **Model storage** (`internal/storage`) — checksum/size of local GGUF
-   files, plus a Hugging Face downloader.
+     exercising the full pipeline without either backend installed.
+4. **Model storage** (`internal/storage`) — checksum/size of a local model:
+   a single file for GGUF, a whole directory (recursively) for MLX; plus a
+   Hugging Face downloader for both.
 
 ## Requirements
 
 - Go 1.24+
-- [llama.cpp](https://github.com/ggml-org/llama.cpp) for real inference:
+- For the `llamacpp` backend (default): [llama.cpp](https://github.com/ggml-org/llama.cpp) —
   `brew install llama.cpp` (installed automatically if you use the Homebrew
   tap below)
+- For the `mlx` backend: [mlx-lm](https://github.com/ml-explore/mlx-lm) —
+  `pip install mlx-lm` (Apple Silicon only)
 
 ## Install
 
@@ -72,9 +80,11 @@ go build -o otelma ./cmd/otelma
 # browse a curated list of small models known to fit a 24GB budget
 otelma list
 
-# pull a model: a local .gguf path, or a Hugging Face reference
+# pull a model: a local .gguf path, a GGUF Hugging Face reference
+# (llamacpp backend), or an MLX one (mlx backend)
 otelma pull smol hf:bartowski/SmolLM2-135M-Instruct-GGUF
 otelma pull local-model /path/to/model.gguf
+otelma pull smol-mlx mlx:mlx-community/Qwen2.5-0.5B-Instruct-4bit
 
 # see registered models and their state
 otelma ps
@@ -100,6 +110,14 @@ backend, or memory budget for that session (see Configuration below).
 Hugging Face resolver (same one `llama-server -hf` uses), so auth tokens and
 caching behave exactly as they do with `llama-cli`/`llama-server` directly.
 Quant defaults to `Q4_K_M` if omitted.
+
+`otelma pull <name> mlx:<user>/<repo>` downloads the same way but via
+mlx-lm's resolver — you'll need an MLX-format repo (look for
+`mlx-community/...` on Hugging Face) and to have started `otelma serve
+-backend mlx` (or set `"backend": "mlx"` in the config file) for it to
+actually run inference; `run`/`chat` route by model name, not by which
+backend pulled it, so pulling an `mlx:` model while `serve` is running
+`llamacpp` will fail to load.
 
 Pulled models are remembered: the registry persists to disk after every
 successful `pull`, so restarting `otelma serve` (or letting it auto-start
@@ -196,10 +214,11 @@ gofmt -l .   # should print nothing
 ## Status
 
 v1.0: the full `pull → ps → rm → run/chat` pipeline works end-to-end with
-real inference via `llamacpp`, auto-starting the server when needed.
-Pulled models survive a `serve` restart (the registry persists to disk).
-Known limitations:
+real inference via `llamacpp` or `mlx`, auto-starting the server when
+needed. Pulled models survive a `serve` restart (the registry persists to
+disk). Known limitations:
 
 - Scheduler serializes dispatch with a single mutex; no priority/fairness
   queue yet.
-- `internal/backend/mlx` (native Apple Silicon backend) is not implemented.
+- One `serve` process runs one backend for every loaded model — no
+  per-model backend selection (see [GUIDE.md](docs/GUIDE.md#using-the-mlx-backend)).
