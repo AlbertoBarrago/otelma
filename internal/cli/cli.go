@@ -8,10 +8,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/albz/otelma/internal/api"
 	"github.com/albz/otelma/internal/backend"
 	"github.com/albz/otelma/internal/backend/echo"
+	"github.com/albz/otelma/internal/backend/llamacpp"
 	"github.com/albz/otelma/internal/manager"
 	"github.com/albz/otelma/internal/scheduler"
 )
@@ -76,8 +78,14 @@ func runPull(c *client, args []string) error {
 	return nil
 }
 
+type psModel struct {
+	Name                 string `json:"name"`
+	State                string `json:"state"`
+	MemoryFootprintBytes uint64 `json:"memory_footprint_bytes"`
+}
+
 func runPS(c *client, args []string) error {
-	var out []map[string]any
+	var out []psModel
 	if err := c.get("/api/ps", &out); err != nil {
 		return err
 	}
@@ -87,9 +95,22 @@ func runPS(c *client, args []string) error {
 	}
 	fmt.Printf("%-24s %-12s %s\n", "NAME", "STATE", "MEMORY")
 	for _, m := range out {
-		fmt.Printf("%-24v %-12v %v\n", m["name"], m["state"], m["memory_footprint_bytes"])
+		fmt.Printf("%-24s %-12s %s\n", m.Name, m.State, formatBytes(m.MemoryFootprintBytes))
 	}
 	return nil
+}
+
+func formatBytes(b uint64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%dB", b)
+	}
+	div, exp := uint64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f%ciB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
 func runRun(c *client, args []string) error {
@@ -110,15 +131,26 @@ func runRun(c *client, args []string) error {
 func runServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	addr := fs.String("addr", "localhost:11535", "address to listen on")
+	backendName := fs.String("backend", "llamacpp", "inference backend: llamacpp or echo")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
+	var newBackend func() backend.InferenceBackend
+	switch *backendName {
+	case "llamacpp":
+		newBackend = func() backend.InferenceBackend { return llamacpp.New(30 * time.Second) }
+	case "echo":
+		newBackend = func() backend.InferenceBackend { return echo.New() }
+	default:
+		return fmt.Errorf("unknown backend %q (want llamacpp or echo)", *backendName)
+	}
+
 	reg := manager.NewRegistry()
 	budget := manager.NewBudget(v0dot1MemoryBudgetBytes)
-	mgr := manager.NewManager(reg, budget, func() backend.InferenceBackend { return echo.New() })
+	mgr := manager.NewManager(reg, budget, newBackend)
 	sched := scheduler.New(mgr)
 	srv := api.New(mgr, sched, log)
 
