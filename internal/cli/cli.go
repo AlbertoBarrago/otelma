@@ -25,6 +25,14 @@ import (
 // flag; that's a follow-up once real backends make it matter in practice.
 const v0dot1MemoryBudgetBytes = 24 * 1 << 30
 
+// logo is kept ASCII-only and narrow enough for a standard 80-column
+// terminal; printed on bare `otelma` / `otelma help` invocations only, not
+// on every command, to stay out of the way of scripting.
+const logo = `   ╭──────────────────────────────╮
+   │  otelma                      │
+   │  local LLM inference runtime │
+   ╰──────────────────────────────╯`
+
 // Run dispatches os.Args[1:] to the appropriate subcommand and returns the
 // process exit code.
 func Run(args []string) int {
@@ -48,7 +56,11 @@ func Run(args []string) int {
 		err = runServe(args[1:])
 	case "list":
 		err = runList(args[1:])
+	case "help", "-h", "--help":
+		printUsage()
+		return 0
 	default:
+		fmt.Fprintf(os.Stderr, "otelma: unknown command %q\n\n", args[0])
 		printUsage()
 		return 1
 	}
@@ -61,7 +73,9 @@ func Run(args []string) int {
 }
 
 func printUsage() {
-	fmt.Fprintln(os.Stderr, `usage: otelma <command> [arguments]
+	fmt.Println(logo)
+	fmt.Println()
+	fmt.Println(`usage: otelma <command> [arguments]
 
 commands:
   pull <name> <source>    register a model: <source> is a local file path
@@ -70,7 +84,10 @@ commands:
                           local memory budget, ready to use with pull
   ps                       list known models and their state
   run <name> <prompt>      load (if needed) and run a prompt
-  serve                    start the local runtime API server`)
+  serve                    start the local runtime API server
+  help                     show this message
+
+run 'otelma <command> -h' for flags on commands that support them`)
 }
 
 func runPull(c *client, args []string) error {
