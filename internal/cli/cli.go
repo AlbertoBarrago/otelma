@@ -83,8 +83,9 @@ func printUsage() {
 	fmt.Println(`usage: otelma <command> [arguments]
 
 commands:
-  pull <name> <source>    register a model: <source> is a local file path
-                          or a Hugging Face reference "hf:<user>/<repo>[:quant]"
+  pull <name> [source]    register a model: <source> is a local file path
+                          or "hf:<user>/<repo>[:quant]"; omit it if <name>
+                          matches an entry from 'list'
   list                     show curated Hugging Face models known to fit the
                           local memory budget, ready to use with pull
   ps                       list known models and their state
@@ -99,11 +100,25 @@ run 'otelma <command> -h' for flags on commands that support them`)
 }
 
 func runPull(c *client, args []string) error {
-	if len(args) != 2 {
+	var name, source string
+	switch len(args) {
+	case 1:
+		// Just a name: resolve it against the catalog (otelma list), so
+		// `otelma pull qwen2.5-0.5b` works the way it looks like it should
+		// instead of demanding the hf: source spelled out too.
+		entry, ok := catalogEntry(args[0])
+		if !ok {
+			return fmt.Errorf(`usage: otelma pull <name> <source>
+  <source> is a local file path or "hf:<user>/<repo>[:quant]"; omit it only
+  when <name> matches an entry from 'otelma list'`)
+		}
+		name, source = entry.Name, entry.HFRef
+	case 2:
+		name, source = args[0], args[1]
+	default:
 		return fmt.Errorf(`usage: otelma pull <name> <source>
   <source> is a local file path or "hf:<user>/<repo>[:quant]" (see otelma list)`)
 	}
-	name, source := args[0], args[1]
 	if strings.HasPrefix(source, "hf:") {
 		fmt.Printf("downloading %s from Hugging Face, this can take a while for larger models...\n", source)
 	}
@@ -115,13 +130,22 @@ func runPull(c *client, args []string) error {
 	return nil
 }
 
+func catalogEntry(name string) (catalog.Entry, bool) {
+	for _, e := range catalog.Entries {
+		if e.Name == name {
+			return e, true
+		}
+	}
+	return catalog.Entry{}, false
+}
+
 func runList(args []string) error {
 	fmt.Printf("%-16s %-8s %s\n", "NAME", "SIZE", "SOURCE")
 	for _, e := range catalog.Entries {
 		fmt.Printf("%-16s %-8s %s\n", e.Name, formatBytes(e.ApproxBytes), e.HFRef)
 		fmt.Printf("%-16s %-8s %s\n", "", "", e.Description)
 	}
-	fmt.Println("\npull one with: otelma pull <local-name> <SOURCE column above>")
+	fmt.Println("\npull one with: otelma pull <NAME column above>")
 	return nil
 }
 

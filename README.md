@@ -8,6 +8,9 @@
   budget as an explicit constraint, not an assumption.
 </div>
 
+Full docs: [Architecture](docs/ARCHITECTURE.md) ·
+[Guide](docs/GUIDE.md) · [Configuration](docs/CONFIGURATION.md)
+
 ## Architecture
 
 Four layers:
