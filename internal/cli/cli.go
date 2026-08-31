@@ -25,14 +25,6 @@ import (
 // flag; that's a follow-up once real backends make it matter in practice.
 const v0dot1MemoryBudgetBytes = 24 * 1 << 30
 
-// logo is kept ASCII-only and narrow enough for a standard 80-column
-// terminal; printed on bare `otelma` / `otelma help` invocations only, not
-// on every command, to stay out of the way of scripting.
-const logo = `   ╭──────────────────────────────╮
-   │  otelma                      │
-   │  local LLM inference runtime │
-   ╰──────────────────────────────╯`
-
 // Run dispatches os.Args[1:] to the appropriate subcommand and returns the
 // process exit code.
 func Run(args []string) int {
@@ -73,7 +65,7 @@ func Run(args []string) int {
 }
 
 func printUsage() {
-	fmt.Println(logo)
+	printLogo()
 	fmt.Println()
 	fmt.Println(`usage: otelma <command> [arguments]
 

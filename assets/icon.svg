@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="128" height="128" rx="24" fill="url(#bg)"/>
+
+  <!-- outer ring: the model's memory budget boundary -->
+  <circle cx="64" cy="64" r="42" fill="none" stroke="url(#ring)" stroke-width="4"/>
+
+  <!-- four ticks marking the READY/BUSY/LOADING/UNLOADING state cycle -->
+  <circle cx="64" cy="18" r="4" fill="#22d3ee"/>
+  <circle cx="110" cy="64" r="4" fill="#6366f1"/>
+  <circle cx="64" cy="110" r="4" fill="#6366f1"/>
+  <circle cx="18" cy="64" r="4" fill="#22d3ee"/>
+
+  <!-- inner core: the loaded model -->
+  <circle cx="64" cy="64" r="20" fill="#22d3ee" opacity="0.15"/>
+  <circle cx="64" cy="64" r="14" fill="none" stroke="#e2e8f0" stroke-width="3"/>
+  <path d="M 57 64 L 62 69 L 72 58" fill="none" stroke="#e2e8f0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

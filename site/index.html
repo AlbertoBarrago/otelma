@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>otelma — local LLM inference runtime</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --bg-panel: #1e293b;
+    --border: #334155;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --accent: #22d3ee;
+    --accent-2: #6366f1;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.6;
+  }
+  header {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 5rem 1.5rem 3rem;
+    text-align: center;
+  }
+  header img { width: 88px; height: 88px; }
+  h1 {
+    font-size: 2.4rem;
+    margin: 1rem 0 0.5rem;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .tagline { color: var(--text-dim); font-size: 1.1rem; max-width: 560px; margin: 0 auto; }
+  main { max-width: 860px; margin: 0 auto; padding: 0 1.5rem 4rem; }
+  .badges { display: flex; gap: 0.5rem; justify-content: center; margin-top: 1.5rem; flex-wrap: wrap; }
+  .badge {
+    font-size: 0.8rem; padding: 0.25rem 0.7rem; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--text-dim);
+  }
+  section { margin-top: 3rem; }
+  h2 {
+    font-size: 1.3rem; border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem; margin-bottom: 1.2rem;
+  }
+  .layers { display: grid; gap: 0.75rem; }
+  .layer {
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1rem 1.2rem;
+  }
+  .layer .n { color: var(--accent); font-weight: 600; font-size: 0.85rem; }
+  .layer .t { font-weight: 600; margin: 0.2rem 0; }
+  .layer .d { color: var(--text-dim); font-size: 0.92rem; margin: 0; }
+  pre {
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.1rem 1.3rem; overflow-x: auto;
+    font-size: 0.88rem;
+  }
+  code { color: var(--accent); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+  ul.plain { padding-left: 1.2rem; color: var(--text-dim); }
+  ul.plain li { margin: 0.3rem 0; }
+  footer {
+    max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem;
+    color: var(--text-dim); font-size: 0.85rem; text-align: center;
+    border-top: 1px solid var(--border);
+  }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <img src="../assets/icon.svg" alt="otelma icon">
+  <h1>otelma</h1>
+  <p class="tagline">A local LLM inference runtime, built from scratch. Smaller and more
+    didactic than Ollama, with a fixed unified memory budget as an explicit constraint.</p>
+  <div class="badges">
+    <span class="badge">Go</span>
+    <span class="badge">Apple Silicon</span>
+    <span class="badge">llama.cpp</span>
+    <span class="badge">v0.1</span>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h2>Quick start</h2>
+<pre><code>go build -o otelma ./cmd/otelma
+./otelma serve &amp;
+
+./otelma list
+./otelma pull smol hf:bartowski/SmolLM2-135M-Instruct-GGUF
+./otelma run smol "What is the capital of Italy?"</code></pre>
+  </section>
+
+  <section>
+    <h2>Architecture</h2>
+    <div class="layers">
+      <div class="layer">
+        <div class="n">01</div>
+        <div class="t">CLI</div>
+        <p class="d">pull, list, ps, run, serve — talks to the API over HTTP even for local calls.</p>
+      </div>
+      <div class="layer">
+        <div class="n">02</div>
+        <div class="t">Local runtime API</div>
+        <p class="d">Model manager: registry + explicit state machine (NOT_PRESENT → DOWNLOADED →
+          LOADING → READY → BUSY → UNLOADING), with a memory Budget that rejects any load exceeding
+          the ceiling. Scheduler: serializes concurrent requests through the manager.</p>
+      </div>
+      <div class="layer">
+        <div class="n">03</div>
+        <div class="t">Inference backend abstraction</div>
+        <p class="d">A common interface behind which concrete engines live: llamacpp (spawns
+          llama-server per model) today, MLX planned.</p>
+      </div>
+      <div class="layer">
+        <div class="n">04</div>
+        <div class="t">Model storage</div>
+        <p class="d">Checksum/size of local GGUF files, plus a Hugging Face downloader for
+          <code>pull &lt;name&gt; hf:&lt;user&gt;/&lt;repo&gt;</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Why the memory budget matters</h2>
+    <p style="color:var(--text-dim)">On 24GB of unified memory, two large models READY at once isn't
+      something you can casually afford. otelma's Budget tracks reservations explicitly and rejects
+      a load before it happens, instead of finding out via a kernel OOM kill.</p>
+  </section>
+
+  <section>
+    <h2>Status: v0.1</h2>
+    <div class="grid2">
+      <div>
+        <p style="margin:0 0 0.4rem;font-weight:600">Works end-to-end</p>
+        <ul class="plain">
+          <li>pull → ps → run pipeline, real inference</li>
+          <li>Pull from local path or Hugging Face</li>
+          <li>Curated model catalog (<code>otelma list</code>)</li>
+        </ul>
+      </div>
+      <div>
+        <p style="margin:0 0 0.4rem;font-weight:600">Known limitations</p>
+        <ul class="plain">
+          <li>Memory budget hardcoded at 24GB</li>
+          <li>Scheduler: single mutex, no priority queue</li>
+          <li>No persistence across server restarts</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  otelma is a from-scratch, didactic project. Source on GitHub.
+</footer>
+
+</body>
+</html>

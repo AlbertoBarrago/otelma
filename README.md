@@ -1,3 +1,5 @@
+<img src="assets/icon.svg" width="96" height="96" alt="otelma icon">
+
 # otelma
 
 A local LLM inference runtime, built from scratch. Smaller and more didactic
