@@ -1,10 +1,12 @@
-<img src="assets/icon.svg" width="96" height="96" alt="otelma icon">
+<div align="center">
+  <img src="assets/icon.svg" width="96" height="96" alt="otelma icon">
 
-# otelma
+  # otelma
 
-A local LLM inference runtime, built from scratch. Smaller and more didactic
-than Ollama, targeting Apple Silicon (M-series) with a fixed unified memory
-budget as an explicit constraint, not an assumption.
+  A local LLM inference runtime, built from scratch. Smaller and more didactic
+  than Ollama, targeting Apple Silicon (M-series) with a fixed unified memory
+  budget as an explicit constraint, not an assumption.
+</div>
 
 ## Architecture
 
