@@ -1,0 +1,6 @@
+/bin/
+*.gguf
+*.bin
+.env
+.DS_Store
+CLAUDE.local.md
