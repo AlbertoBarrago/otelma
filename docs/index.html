@@ -144,11 +144,14 @@ go build -o otelma ./cmd/otelma</code></pre>
 
   <section>
     <h2>Quick start</h2>
-<pre><code>./otelma serve &amp;
+<pre><code>otelma list
+otelma pull smol hf:bartowski/SmolLM2-135M-Instruct-GGUF
+otelma run smol "What is the capital of Italy?"
 
-./otelma list
-./otelma pull smol hf:bartowski/SmolLM2-135M-Instruct-GGUF
-./otelma run smol "What is the capital of Italy?"</code></pre>
+otelma chat smol   # interactive, multi-turn</code></pre>
+    <p class="d" style="color:var(--text-dim);margin-top:0.6rem">No separate
+      "start the server" step: <code>otelma serve</code> auto-starts in the
+      background the first time it's needed.</p>
   </section>
 
   <section>
@@ -194,10 +197,12 @@ go build -o otelma ./cmd/otelma</code></pre>
       <div>
         <p style="margin:0 0 0.4rem;font-weight:600">Works end-to-end</p>
         <ul class="plain">
-          <li>pull → ps → run pipeline, real inference</li>
+          <li>pull → ps → run/chat pipeline, real inference</li>
+          <li>Interactive multi-turn chat with real context</li>
           <li>Pull from local path or Hugging Face</li>
           <li>Curated model catalog (<code>otelma list</code>)</li>
           <li>Configurable via a single JSON file (<code>otelma config</code>)</li>
+          <li>Server auto-starts in the background when needed</li>
         </ul>
       </div>
       <div>

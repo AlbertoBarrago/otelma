@@ -12,8 +12,9 @@
 
 Four layers:
 
-1. **CLI** (`pull`, `list`, `ps`, `run`, `serve`) — talks to the API over
-   HTTP even for local invocations.
+1. **CLI** (`pull`, `list`, `ps`, `run`, `chat`, `serve`, `config`) — talks
+   to the API over HTTP even for local invocations, and auto-starts
+   `otelma serve` in the background if it isn't already running.
 2. **Local runtime API** (`internal/api`) — HTTP server exposing the Model
    manager and Scheduler.
    - **Model manager** (`internal/manager`) — registry of models and an
@@ -65,27 +66,49 @@ go build -o otelma ./cmd/otelma
 ## Usage
 
 ```sh
-# start the local runtime API server (background)
-./otelma serve &
-
 # browse a curated list of small models known to fit a 24GB budget
-./otelma list
+otelma list
 
 # pull a model: a local .gguf path, or a Hugging Face reference
-./otelma pull smol hf:bartowski/SmolLM2-135M-Instruct-GGUF
-./otelma pull local-model /path/to/model.gguf
+otelma pull smol hf:bartowski/SmolLM2-135M-Instruct-GGUF
+otelma pull local-model /path/to/model.gguf
 
 # see registered models and their state
-./otelma ps
+otelma ps
 
-# load (if needed) and run a prompt
-./otelma run smol "What is the capital of Italy?"
+# single-shot: load (if needed) and run one prompt
+otelma run smol "What is the capital of Italy?"
+
+# interactive, multi-turn chat (same as `otelma run smol` with no prompt)
+otelma chat smol
 ```
+
+There's no separate step to start the server: any command that needs it
+(`pull`, `ps`, `run`, `chat`) auto-starts `otelma serve` in the background
+the first time it's needed, logging to `~/Library/Caches/otelma/serve.log`.
+Run `otelma serve` yourself first if you want to control its address,
+backend, or memory budget for that session (see Configuration below).
 
 `otelma pull <name> hf:<user>/<repo>[:quant]` downloads via llama.cpp's own
 Hugging Face resolver (same one `llama-server -hf` uses), so auth tokens and
 caching behave exactly as they do with `llama-cli`/`llama-server` directly.
 Quant defaults to `Q4_K_M` if omitted.
+
+### Chat
+
+`otelma chat <name>` keeps the full conversation transcript and resends it
+on every turn, so the model actually sees prior context instead of each
+message being an isolated request:
+
+```
+$ otelma chat smol
+chatting with smol (Ctrl+D or /exit to quit, /clear to reset context)
+> My name is Alberto.
+Nice to meet you, Alberto!
+> What's my name?
+Your name is Alberto.
+> /exit
+```
 
 ## Configuration
 
@@ -127,8 +150,9 @@ gofmt -l .   # should print nothing
 
 ## Status
 
-v0.1: the full `pull → ps → run` pipeline works end-to-end with real
-inference via `llamacpp`. Known limitations:
+v0.1: the full `pull → ps → run/chat` pipeline works end-to-end with real
+inference via `llamacpp`, auto-starting the server when needed. Known
+limitations:
 
 - Scheduler serializes dispatch with a single mutex; no priority/fairness
   queue yet.

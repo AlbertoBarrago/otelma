@@ -12,6 +12,7 @@ package scheduler
 import (
 	"sync"
 
+	"github.com/albz/otelma/internal/backend"
 	"github.com/albz/otelma/internal/manager"
 )
 
@@ -27,16 +28,17 @@ func New(mgr *manager.Manager) *Scheduler {
 	return &Scheduler{mgr: mgr}
 }
 
-// Submit loads name if it isn't already Ready/Busy, runs prompt against it,
-// and returns the result. The model is left Ready (not unloaded) so
-// subsequent requests avoid a reload.
-func (s *Scheduler) Submit(name, prompt string) (string, error) {
+// Submit loads name if it isn't already Ready/Busy, runs the conversation
+// (messages[len-1] is the newest turn) against it, and returns the result.
+// The model is left Ready (not unloaded) so subsequent requests avoid a
+// reload.
+func (s *Scheduler) Submit(name string, messages []backend.Message) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	m, ok := s.mgr.Registry.Get(name)
 	if !ok {
-		return s.mgr.Infer(name, prompt) // surfaces the "not registered" error uniformly
+		return s.mgr.Infer(name, messages) // surfaces the "not registered" error uniformly
 	}
 
 	if m.State == manager.Downloaded {
@@ -45,5 +47,5 @@ func (s *Scheduler) Submit(name, prompt string) (string, error) {
 		}
 	}
 
-	return s.mgr.Infer(name, prompt)
+	return s.mgr.Infer(name, messages)
 }

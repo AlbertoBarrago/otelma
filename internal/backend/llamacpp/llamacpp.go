@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"os/exec"
 	"time"
+
+	"github.com/albz/otelma/internal/backend"
 )
 
 // Backend runs one llama-server subprocess for the model passed to Load,
@@ -99,14 +101,22 @@ type chatResponse struct {
 	} `json:"error"`
 }
 
-func (b *Backend) Infer(prompt string) (string, error) {
+func (b *Backend) Infer(messages []backend.Message) (string, error) {
 	if b.addr == "" {
 		return "", fmt.Errorf("llamacpp: not loaded")
+	}
+	if len(messages) == 0 {
+		return "", fmt.Errorf("llamacpp: no messages")
+	}
+
+	chatMessages := make([]chatMessage, len(messages))
+	for i, m := range messages {
+		chatMessages[i] = chatMessage{Role: m.Role, Content: m.Content}
 	}
 
 	reqBody, err := json.Marshal(chatRequest{
 		Model:    "local",
-		Messages: []chatMessage{{Role: "user", Content: prompt}},
+		Messages: chatMessages,
 	})
 	if err != nil {
 		return "", err

@@ -6,10 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"github.com/albz/otelma/internal/backend"
 	"github.com/albz/otelma/internal/manager"
 	"github.com/albz/otelma/internal/scheduler"
 )
@@ -87,9 +89,15 @@ func (s *Server) handlePS(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, views)
 }
 
+type runMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
 type runRequest struct {
-	Name   string `json:"name"`
-	Prompt string `json:"prompt"`
+	Name     string       `json:"name"`
+	Prompt   string       `json:"prompt,omitempty"` // single-shot convenience; ignored if Messages is set
+	Messages []runMessage `json:"messages,omitempty"`
 }
 
 type runResponse struct {
@@ -103,7 +111,21 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out, err := s.sched.Submit(req.Name, req.Prompt)
+	messages := req.Messages
+	if len(messages) == 0 && req.Prompt != "" {
+		messages = []runMessage{{Role: "user", Content: req.Prompt}}
+	}
+	if len(messages) == 0 {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("request must set prompt or messages"))
+		return
+	}
+
+	backendMessages := make([]backend.Message, len(messages))
+	for i, m := range messages {
+		backendMessages[i] = backend.Message{Role: m.Role, Content: m.Content}
+	}
+
+	out, err := s.sched.Submit(req.Name, backendMessages)
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err)
 		return

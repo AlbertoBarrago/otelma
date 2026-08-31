@@ -169,8 +169,10 @@ func (mgr *Manager) UnloadModel(name string) error {
 	return mgr.Transition(m, Downloaded)
 }
 
-// Infer runs prompt against a Ready model, marking it Busy for the duration.
-func (mgr *Manager) Infer(name, prompt string) (string, error) {
+// Infer runs the given conversation against a Ready model, marking it Busy
+// for the duration. messages is the full turn history; messages[len-1] is
+// the newest turn.
+func (mgr *Manager) Infer(name string, messages []backend.Message) (string, error) {
 	m, ok := mgr.Registry.Get(name)
 	if !ok {
 		return "", fmt.Errorf("infer %q: model not registered", name)
@@ -188,7 +190,7 @@ func (mgr *Manager) Infer(name, prompt string) (string, error) {
 	}
 	defer func() { _ = mgr.Transition(m, Ready) }()
 
-	return be.Infer(prompt)
+	return be.Infer(messages)
 }
 
 // Transition moves m from its current state to `to`, enforcing the legal

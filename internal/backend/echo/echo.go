@@ -4,7 +4,11 @@
 // inference: Infer echoes the prompt back with a fixed prefix.
 package echo
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/albz/otelma/internal/backend"
+)
 
 // Backend is a no-op InferenceBackend: Load/Unload just track a loaded
 // flag, Infer echoes the prompt. It reports a fixed, non-zero memory
@@ -31,11 +35,14 @@ func (b *Backend) Unload() error {
 	return nil
 }
 
-func (b *Backend) Infer(prompt string) (string, error) {
+func (b *Backend) Infer(messages []backend.Message) (string, error) {
 	if !b.loaded {
 		return "", fmt.Errorf("echo backend: not loaded")
 	}
-	return fmt.Sprintf("[echo:%s] %s", b.path, prompt), nil
+	if len(messages) == 0 {
+		return "", fmt.Errorf("echo backend: no messages")
+	}
+	return fmt.Sprintf("[echo:%s] %s", b.path, messages[len(messages)-1].Content), nil
 }
 
 func (b *Backend) MemoryFootprintBytes() uint64 {

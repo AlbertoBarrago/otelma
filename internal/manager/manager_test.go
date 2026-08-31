@@ -11,10 +11,12 @@ import (
 
 type stubBackend struct{ loaded bool }
 
-func (s *stubBackend) Load(string) error                   { s.loaded = true; return nil }
-func (s *stubBackend) Unload() error                       { s.loaded = false; return nil }
-func (s *stubBackend) Infer(prompt string) (string, error) { return "echo:" + prompt, nil }
-func (s *stubBackend) MemoryFootprintBytes() uint64        { return 0 }
+func (s *stubBackend) Load(string) error { s.loaded = true; return nil }
+func (s *stubBackend) Unload() error     { s.loaded = false; return nil }
+func (s *stubBackend) Infer(messages []backend.Message) (string, error) {
+	return "echo:" + messages[len(messages)-1].Content, nil
+}
+func (s *stubBackend) MemoryFootprintBytes() uint64 { return 0 }
 
 func newTestManager(totalBytes uint64) (*Manager, *Model) {
 	m := &Model{Name: "test-model", State: NotPresent, MemoryFootprintBytes: 4}
@@ -134,7 +136,7 @@ func TestManager_PullLoadInferUnload(t *testing.T) {
 		t.Fatalf("expected Ready after load, got %s", m.State)
 	}
 
-	out, err := mgr.Infer("demo", "hello")
+	out, err := mgr.Infer("demo", []backend.Message{{Role: "user", Content: "hello"}})
 	if err != nil {
 		t.Fatalf("Infer failed: %v", err)
 	}

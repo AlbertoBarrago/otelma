@@ -40,11 +40,21 @@ func Run(args []string) int {
 
 	switch args[0] {
 	case "pull":
-		err = runPull(c, args[1:])
+		if err = ensureServerRunning(c); err == nil {
+			err = runPull(c, args[1:])
+		}
 	case "ps":
-		err = runPS(c, args[1:])
+		if err = ensureServerRunning(c); err == nil {
+			err = runPS(c, args[1:])
+		}
 	case "run":
-		err = runRun(c, args[1:])
+		if err = ensureServerRunning(c); err == nil {
+			err = runRun(c, args[1:])
+		}
+	case "chat":
+		if err = ensureServerRunning(c); err == nil {
+			err = runChatCommand(c, args[1:])
+		}
 	case "serve":
 		err = runServe(cfg, args[1:])
 	case "list":
@@ -78,7 +88,9 @@ commands:
   list                     show curated Hugging Face models known to fit the
                           local memory budget, ready to use with pull
   ps                       list known models and their state
-  run <name> <prompt>      load (if needed) and run a prompt
+  run <name> [prompt]      load (if needed) and run a prompt; omit prompt
+                          to start an interactive chat (same as 'chat')
+  chat <name>              start an interactive, multi-turn chat session
   serve                    start the local runtime API server
   config path|init|show    locate, scaffold, or print the config file
   help                     show this message
@@ -149,10 +161,15 @@ func formatBytes(b uint64) string {
 }
 
 func runRun(c *client, args []string) error {
-	if len(args) < 2 {
-		return fmt.Errorf("usage: otelma run <name> <prompt>")
+	if len(args) < 1 {
+		return fmt.Errorf("usage: otelma run <name> [prompt]\n  omit [prompt] to start an interactive chat")
 	}
-	name, prompt := args[0], args[1]
+	name := args[0]
+	if len(args) == 1 {
+		return runChat(c, name)
+	}
+
+	prompt := args[1]
 	var out struct {
 		Output string `json:"output"`
 	}
