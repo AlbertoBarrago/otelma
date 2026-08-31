@@ -113,6 +113,16 @@ Your name is Alberto.
 > /exit
 ```
 
+## Version
+
+```sh
+otelma version   # or: otelma -v / --version
+```
+
+Prints the release version when built via Homebrew or a tagged
+`go build -ldflags "-X github.com/albz/otelma/internal/cli.Version=vX.Y.Z"`;
+a plain `go build` from source prints `dev`.
+
 ## Configuration
 
 Every hardcoded default lives in a single JSON file. Find it, create it,

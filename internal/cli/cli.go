@@ -61,6 +61,8 @@ func Run(args []string) int {
 		err = runList(args[1:])
 	case "config":
 		err = runConfig(cfg, args[1:])
+	case "version", "-v", "--version":
+		err = runVersion(args[1:])
 	case "help", "-h", "--help":
 		printUsage()
 		return 0
@@ -94,6 +96,7 @@ commands:
   chat <name>              start an interactive, multi-turn chat session
   serve                    start the local runtime API server
   config path|init|show    locate, scaffold, or print the config file
+  version                  print the otelma version
   help                     show this message
 
 run 'otelma <command> -h' for flags on commands that support them`)
